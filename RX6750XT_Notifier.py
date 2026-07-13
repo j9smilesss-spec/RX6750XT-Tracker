@@ -216,8 +216,6 @@ def check_product(name, url):
 # RUN
 # =========================
 
-for name, url in PRODUCTS.items():
-
 send_discord(
     "TEST RX 6750 XT",
     299.99,
@@ -225,4 +223,4 @@ send_discord(
     "https://example.com"
 )
 
-print("Finished")
+print("Test sent")
