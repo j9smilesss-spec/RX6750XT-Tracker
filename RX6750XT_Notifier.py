@@ -13,8 +13,8 @@ from datetime import datetime
 MAX_PRICE = 390
 MIN_PRICE = 250
 
-DISCORD_WEBHOOK = os.environ["DISCORD_WEBHOOK"]
-DISCORD_USER_ID = os.environ["DISCORD_USER_ID"]
+DISCORD_WEBHOOK = os.environ["https://discord.com/api/webhooks/1526324828087390288/0MBP_8KG4kZZJfCRikk8rCUZxeKkuKzCPw8WEViOB57jWaoRdtf9XWoUXR7w_jLXzWcv"]
+DISCORD_USER_ID = os.environ["1396870106834796675"]
 
 DATA_FILE = "prices.json"
 
