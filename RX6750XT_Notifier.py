@@ -10,7 +10,7 @@ from datetime import datetime
 # SETTINGS
 # =========================
 
-MAX_PRICE = 390
+MAX_PRICE = 300
 MIN_PRICE = 250
 
 DISCORD_WEBHOOK = os.environ["DISCORD_WEBHOOK"]
@@ -218,9 +218,11 @@ def check_product(name, url):
 
 for name, url in PRODUCTS.items():
 
-    check_product(
-        name,
-        url
-    )
+send_discord(
+    "TEST RX 6750 XT",
+    299.99,
+    None,
+    "https://example.com"
+)
 
 print("Finished")
