@@ -1,10 +1,9 @@
-import time
+import os
 import re
 import json
-import os
 import requests
-
 from bs4 import BeautifulSoup
+from datetime import datetime
 
 
 # =========================
@@ -14,15 +13,10 @@ from bs4 import BeautifulSoup
 MAX_PRICE = 300
 MIN_PRICE = 250
 
-CHECK_EVERY_HOURS = 2
+DISCORD_WEBHOOK = os.environ["https://discord.com/api/webhooks/1526324828087390288/0MBP_8KG4kZZJfCRikk8rCUZxeKkuKzCPw8WEViOB57jWaoRdtf9XWoUXR7w_jLXzWcv"]
+DISCORD_USER_ID = os.environ["1396870106834796675"]
 
-
-DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1526324828087390288/0MBP_8KG4kZZJfCRikk8rCUZxeKkuKzCPw8WEViOB57jWaoRdtf9XWoUXR7w_jLXzWcv"
-DISCORD_USER_ID = "1396870106834796675"
-
-
-HISTORY_FILE = "seen_deals.json"
-
+DATA_FILE = "prices.json"
 
 
 # =========================
@@ -30,70 +24,40 @@ HISTORY_FILE = "seen_deals.json"
 # =========================
 
 PRODUCTS = {
-
-    "RX 6750 XT - Amazon":
-    "https://www.amazon.com/s?k=rx+6750+xt",
-
-
-    "RX 6750 XT - Walmart":
-    "https://www.walmart.com/search?q=rx+6750+xt",
-
-
-    "RX 6750 XT - B&H":
-    "https://www.bhphotovideo.com/c/search?q=rx%206750%20xt",
-
-
-    "RX 6750 XT - Best Buy":
-    "https://www.bestbuy.com/site/searchpage.jsp?st=rx+6750+xt"
-
+    "AMD Radeon RX 6750 XT": 
+    "https://pcpartpicker.com/products/video-card/#c=518"
 }
 
-
-
-# =========================
-# HEADERS
-# =========================
 
 HEADERS = {
-
     "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-
-    "Accept":
-    "text/html,application/xhtml+xml"
-
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 }
 
 
-
 # =========================
-# HISTORY
+# PRICE MEMORY
 # =========================
 
-def load_history():
+def load_data():
 
-    if os.path.exists(HISTORY_FILE):
+    if os.path.exists(DATA_FILE):
 
-        with open(HISTORY_FILE, "r") as f:
-
+        with open(DATA_FILE, "r") as f:
             return json.load(f)
 
-    return []
+    return {}
 
 
 
-def save_history(data):
+def save_data(data):
 
-    with open(HISTORY_FILE, "w") as f:
-
-        json.dump(
-            data,
-            f,
-            indent=4
-        )
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=4)
 
 
-seen = load_history()
+
+old_prices = load_data()
 
 
 
@@ -101,41 +65,48 @@ seen = load_history()
 # DISCORD EMBED
 # =========================
 
-def send_discord(name, price, link):
+def send_discord(name, price, old_price, link):
+
+    change = ""
+
+    if old_price:
+        difference = old_price - price
+
+        if difference > 0:
+            change = f"\n📉 Drop: ${difference:.2f}"
 
 
     embed = {
 
         "title":
-        "🚨 RX 6750 XT DEAL FOUND!",
-
+        "🚨 RX 6750 XT DEAL ALERT",
 
         "color":
-        5763719,
+        65280,
 
-
-        "fields":
-
-        [
+        "fields": [
 
             {
-                "name": "🎮 Card",
+                "name": "🎮 GPU",
                 "value": name,
                 "inline": False
             },
 
-
             {
                 "name": "💰 Price",
-                "value": f"${price}",
+                "value": f"${price:.2f}{change}",
                 "inline": True
             },
 
+            {
+                "name": "🕒 Checked",
+                "value": datetime.now().strftime("%m/%d/%Y %I:%M %p"),
+                "inline": True
+            },
 
             {
                 "name": "🔗 Link",
-                "value": link,
-                "inline": False
+                "value": link
             }
 
         ]
@@ -148,7 +119,6 @@ def send_discord(name, price, link):
         "content":
         f"<@{DISCORD_USER_ID}>",
 
-
         "embeds":
         [
             embed
@@ -157,242 +127,101 @@ def send_discord(name, price, link):
     }
 
 
-    try:
-
-        requests.post(
-
-            DISCORD_WEBHOOK,
-
-            json=payload,
-
-            timeout=10
-
-        )
-
-
-    except Exception as e:
-
-        print(
-            "Discord error:",
-            e
-        )
-
-
-
-# =========================
-# PRICE FINDER
-# =========================
-
-def find_prices(text):
-
-    prices = re.findall(
-
-        r"\$(\d{2,4}(?:\.\d{2})?)",
-
-        text
-
+    requests.post(
+        DISCORD_WEBHOOK,
+        json=payload,
+        timeout=10
     )
 
 
-    return [
 
+# =========================
+# CHECK PRICE
+# =========================
+
+def check_product(name, url):
+
+    print("Checking:", name)
+
+
+    response = requests.get(
+        url,
+        headers=HEADERS,
+        timeout=20
+    )
+
+
+    soup = BeautifulSoup(
+        response.text,
+        "html.parser"
+    )
+
+
+    text = soup.get_text(
+        " ",
+        strip=True
+    )
+
+
+    prices = re.findall(
+        r"\$(\d+\.\d{2})",
+        text
+    )
+
+
+    prices = [
         float(p)
-
         for p in prices
+    ]
+
+
+    valid = [
+
+        p for p in prices
+
+        if MIN_PRICE <= p <= MAX_PRICE
 
     ]
 
 
+    if not valid:
 
-# =========================
-# CHECK WEBSITE
-# =========================
+        print("No deal found")
 
-def check_site(name, url):
+        return
 
 
-    print(
-        "Checking:",
-        name
-    )
 
+    price = min(valid)
 
-    try:
+    previous = old_prices.get(name)
 
 
-        response = requests.get(
-
-            url,
-
-            headers=HEADERS,
-
-            timeout=20
-
-        )
-
-
-        if response.status_code != 200:
-
-            print(
-                "Blocked:",
-                response.status_code
-            )
-
-            return
-
-
-
-        soup = BeautifulSoup(
-
-            response.text,
-
-            "html.parser"
-
-        )
-
-
-        text = soup.get_text(
-
-            " ",
-
-            strip=True
-
-        )
-
-
-        if "6750" not in text:
-
-            print(
-                "No RX 6750 XT"
-            )
-
-            return
-
-
-
-        prices = find_prices(text)
-
-
-
-        good_prices = [
-
-            p
-
-            for p in prices
-
-            if MIN_PRICE <= p <= MAX_PRICE
-
-        ]
-
-
-
-        if not good_prices:
-
-            print(
-                "No valid prices"
-            )
-
-            return
-
-
-
-        price = min(good_prices)
-
-
-
-        deal_id = (
-
-            name
-
-            +
-
-            str(price)
-
-        )
-
-
-
-        if deal_id in seen:
-
-            print(
-                "Already alerted"
-            )
-
-            return
-
-
-
-        seen.append(
-
-            deal_id
-
-        )
-
-
-        save_history(
-
-            seen
-
-        )
-
+    if previous != price:
 
         send_discord(
-
             name,
-
             price,
-
+            previous,
             url
-
         )
 
 
-        print(
-            "DEAL SENT!"
-        )
+    old_prices[name] = price
 
-
-
-    except Exception as e:
-
-        print(
-            "Error:",
-            e
-        )
+    save_data(old_prices)
 
 
 
 # =========================
-# MAIN LOOP
+# RUN
 # =========================
 
-while True:
+for name, url in PRODUCTS.items():
 
-
-    print(
-        "\nChecking RX 6750 XT..."
+    check_product(
+        name,
+        url
     )
 
-
-    for name, url in PRODUCTS.items():
-
-        check_site(
-
-            name,
-
-            url
-
-        )
-
-
-
-    print(
-        "Finished. Sleeping 2 hours."
-    )
-
-
-    time.sleep(
-
-        CHECK_EVERY_HOURS * 3600
-
-    )
+print("Finished")
