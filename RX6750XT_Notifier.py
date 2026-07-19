@@ -150,7 +150,7 @@ def send_discord(name, price, old_price, link):
 # CHECK PRICE
 # =========================
 
-    def check_product(name, url):
+def check_product(name, url):
 
     print("Checking:", name)
 
