@@ -205,7 +205,6 @@ def check_product(name, url):
     print(product_link)
 
 
-    # Get price from page text
     # Load the actual product page for price
     try:
         product_response = requests.get(
@@ -224,14 +223,19 @@ def check_product(name, url):
         return
 
 
-    # Get price from actual product page
-    product_text = product_soup.get_text(" ", strip=True)
+    # Find price from Newegg page source
+    html = product_response.text
 
     prices = re.findall(
-        r"\$(\d+\.\d{2})",
-        product_text
+        r'"price":"(\d+\.\d{2})"',
+        html
     )
 
+    if not prices:
+        prices = re.findall(
+            r'\$(\d+\.\d{2})',
+            html
+        )
 
     prices = [
         float(p)
