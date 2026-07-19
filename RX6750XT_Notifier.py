@@ -128,15 +128,15 @@ def send_discord(name, price, old_price, link):
 
     }
 
+    response = requests.post(
+        DISCORD_WEBHOOK,
+        json=payload,
+        timeout=10
+    )
 
-response = requests.post(
-    DISCORD_WEBHOOK,
-    json=payload,
-    timeout=10
-)
+    print("Discord status:", response.status_code)
+    print(response.text)
 
-print("Discord status:", response.status_code)
-print(response.text)
 
 
 
