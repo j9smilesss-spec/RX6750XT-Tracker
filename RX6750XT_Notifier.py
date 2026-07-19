@@ -225,30 +225,24 @@ def check_product(name, url):
 
     # Find price from Newegg page data
     html = product_response.text
-    
-    html = product_response.text
-
-    print("Length of product page:", len(html))
-
-    for keyword in ["price", "Price", "299", "300", "sale", "product"]:
-        print(keyword, html.find(keyword))
 
     prices = []
 
-    patterns = [
-        r'"price"\s*:\s*"?(\d+\.\d{2})',
-        r'"finalPrice"\s*:\s*"?(\d+\.\d{2})',
-        r'"salePrice"\s*:\s*"?(\d+\.\d{2})',
-        r'"currentPrice"\s*:\s*"?(\d+\.\d{2})',
-        r'"displayPrice"\s*:\s*"?(\d+\.\d{2})',
-        r'\$(\d+\.\d{2})'
-    ]
+    # Look around common price locations
+    matches = re.findall(
+        r'.{0,100}(\d{2,3}\.\d{2}).{0,100}',
+        html
+    )
 
-    for pattern in patterns:
-        found = re.findall(pattern, html)
+    for match in matches:
+        try:
+            value = float(match)
 
-        if found:
-            prices.extend(found)
+            if MIN_PRICE <= value <= MAX_PRICE:
+                prices.append(match)
+
+        except:
+            pass
 
 
     print("Prices found:", prices[:20])
