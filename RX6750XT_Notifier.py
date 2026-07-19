@@ -225,6 +225,7 @@ def check_product(name, url):
 
     # Find price from Newegg JSON data
     html = product_response.text
+    print(html[:1000])
 
     prices = re.findall(
         r'"currentPrice"\s*:\s*\{.*?"price"\s*:\s*"?(\d+\.\d{2})',
