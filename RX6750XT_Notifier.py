@@ -23,12 +23,11 @@ DATA_FILE = "prices.json"
 # =========================
 
 PRODUCTS = {
-    "AMD Radeon RX 6750 XT": 
-    "Best Buy – AMD Radeon RX 6750 XT GPUs"
-    "B&H – XFX Radeon RX 6750 XT"
-    "Newegg – RX 6750 XT Search"
-    "Walmart – RX 6750 XT Search"
-    "eBay – RX 6750 XT Search"
+    "Best Buy": "https://www.bestbuy.com/site/searchpage.jsp?st=rx+6750+xt",
+    "B&H": "https://www.bhphotovideo.com/c/search?q=RX%206750%20XT",
+    "Newegg": "https://www.newegg.com/p/pl?d=RX+6750+XT",
+    "Walmart": "https://www.walmart.com/search?q=RX+6750+XT",
+    "eBay": "https://www.ebay.com/sch/i.html?_nkw=RX+6750+XT"
 }
 
 
