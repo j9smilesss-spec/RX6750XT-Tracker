@@ -271,8 +271,7 @@ def check_product(name, url):
     price = min(valid)
 
 
-    previous = old_prices.get(name)
-
+previous = old_prices.get(name)
 
 print("Previous:", previous)
 print("Current:", price)
@@ -282,11 +281,11 @@ if previous != price:
     print("Sending Discord alert!")
 
     send_discord(
-            title,
-            price,
-            previous,
-            product_link
-        )
+        title,
+        price,
+        previous,
+        product_link
+    )
 
 
     old_prices[name] = price
