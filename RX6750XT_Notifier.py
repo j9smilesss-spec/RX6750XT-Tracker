@@ -232,61 +232,35 @@ def check_product(name, url):
         return
 
 
-    # Find price from Newegg page data
     html = product_response.text
 
     prices = []
 
-    patterns = [
-        r'"currentPrice"\s*:\s*"(\d+\.\d{2})"',
-        r'"finalPrice"\s*:\s*"(\d+\.\d{2})"',
-        r'"price"\s*:\s*"(\d+\.\d{2})"',
-    ]
+    matches = re.findall(
+        r'\$(\d+\.\d{2})',
+        html
+    )
 
-    for pattern in patterns:
-        found = re.findall(pattern, html)
-        prices.extend(found)
+    for match in matches:
+        value = float(match)
 
-    print("Raw prices:", prices)
+        if MIN_PRICE <= value <= MAX_PRICE:
+            prices.append(value)
 
-    prices = [
-        float(p)
-        for p in prices
-    ]
 
-    valid = [
-        p for p in prices
-        if MIN_PRICE <= p <= MAX_PRICE
-    ]
+    print("Prices found:", prices)
+    print("Price locations:")
+for p in prices:
+    print(p)
 
-    if not valid:
+    if not prices:
         print("No valid price")
         return
 
 
-    price = min(valid)
+    price = min(prices)
 
-    previous = old_prices.get(name)
-
-    print("Previous:", previous)
-    print("Current:", price)
-
-    if previous != price:
-
-        print("Sending Discord alert!")
-
-        send_discord(
-            title,
-            price,
-            previous,
-            product_link
-        )
-
-
-    old_prices[name] = price
-
-    save_data(old_prices)
-
+    print("Using price:", price)
 
 
 # =========================
