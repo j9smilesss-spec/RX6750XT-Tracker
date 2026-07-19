@@ -10,8 +10,8 @@ from datetime import datetime
 # SETTINGS
 # =========================
 
-MAX_PRICE = 10000
-MIN_PRICE = 200
+MAX_PRICE = 315
+MIN_PRICE = 250
 
 DISCORD_WEBHOOK = os.environ["DISCORD_WEBHOOK"]
 DISCORD_USER_ID = os.environ["DISCORD_USER_ID"]
@@ -155,42 +155,85 @@ def check_product(name, url):
         print(f"{name} failed: {e}")
         return
 
+
     soup = BeautifulSoup(
         response.text,
         "html.parser"
     )
 
 
+    # Find product links
+    links = soup.find_all("a", href=True)
+
+
+    found_product = None
+
+    for link in links:
+
+        href = link["href"]
+        title = link.get_text(" ", strip=True)
+
+
+        if "/p/" in href and "6750" in title.lower():
+
+            found_product = {
+                "title": title,
+                "link": href
+            }
+
+            break
+
+
+    if not found_product:
+
+        print("No RX 6750 XT product found")
+        return
+
+
+    title = found_product["title"]
+    product_link = found_product["link"]
+
+
+    # Fix relative URLs
+    if product_link.startswith("/"):
+
+        product_link = "https://www.newegg.com" + product_link
+
+
+    print("Found:")
+    print(title)
+    print(product_link)
+
+
+    # Get price from page text
     text = soup.get_text(" ", strip=True)
 
-    print("Status Code:", response.status_code)
-    print(response.text)
-    print("Downloaded", len(response.text), "characters")
+    prices = re.findall(
+        r"\$(\d+\.\d{2})",
+        text
+    )
 
-    prices = re.findall(r"\$(\d+\.\d{2})", text)
-
-    print("Prices found:", len(prices))
-    print(prices[:30])
 
     prices = [
         float(p)
         for p in prices
     ]
 
+
     valid = [
         p for p in prices
         if MIN_PRICE <= p <= MAX_PRICE
     ]
 
+
     if not valid:
 
-        print("No deal found")
-
+        print("No valid price")
         return
 
 
-
     price = min(valid)
+
 
     previous = old_prices.get(name)
 
@@ -198,10 +241,10 @@ def check_product(name, url):
     if previous != price:
 
         send_discord(
-            name,
+            title,
             price,
             previous,
-            url
+            product_link
         )
 
 
