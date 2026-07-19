@@ -155,32 +155,25 @@ def check_product(name, url):
         "html.parser"
     )
 
+    text = soup.get_text(" ", strip=True)
 
-text = soup.get_text(" ", strip=True)
+    print("Status Code:", response.status_code)
+    print("Downloaded", len(response.text), "characters")
 
-print("Status Code:", response.status_code)
-print("Downloaded", len(response.text), "characters")
+    prices = re.findall(r"\$(\d+\.\d{2})", text)
 
-prices = re.findall(r"\$(\d+\.\d{2})", text)
-
-print("Prices found:", len(prices))
-print(prices[:30])
-
+    print("Prices found:", len(prices))
+    print(prices[:30])
 
     prices = [
         float(p)
         for p in prices
     ]
 
-
     valid = [
-
         p for p in prices
-
         if MIN_PRICE <= p <= MAX_PRICE
-
     ]
-
 
     if not valid:
 
