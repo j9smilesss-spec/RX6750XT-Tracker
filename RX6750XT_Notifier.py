@@ -77,15 +77,16 @@ def send_discord(name, price, old_price, link):
         if difference > 0:
             change = f"\n📉 Drop: ${difference:.2f}"
 
-print("Discord embed price:", price)
-print("Discord embed name:", name)
-print("Discord link:", link)
-    
+
+    print("Discord embed price:", price)
+    print("Discord embed name:", name)
+    print("Discord link:", link)
+
+
     embed = {
 
         "title":
         "🚨 RX 6750 XT DEAL ALERT",
-
         "color":
         65280,
 
