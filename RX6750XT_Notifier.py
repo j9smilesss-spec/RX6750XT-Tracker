@@ -232,23 +232,23 @@ def check_product(name, url):
         return
 
 
-html = product_response.text
+    html = product_response.text
 
-prices = []
+    prices = []
 
-matches = re.findall(
-    r'(\d{2,3}\.\d{2})',
-    html
-)
+    matches = re.findall(
+        r'(\d{2,3}\.\d{2})',
+        html
+    )
 
-for match in matches:
-    value = float(match)
+    for match in matches:
+        value = float(match)
 
-    if MIN_PRICE <= value <= MAX_PRICE:
-        prices.append(value)
+        if MIN_PRICE <= value <= MAX_PRICE:
+            prices.append(value)
 
 
-print("Prices found:", prices[:20])
+    print("Prices found:", prices[:20])
 
     if not prices:
         print("No valid price")
@@ -278,7 +278,6 @@ print("Prices found:", prices[:20])
     old_prices[name] = price
 
     save_data(old_prices)
-
 
 # =========================
 # RUN
