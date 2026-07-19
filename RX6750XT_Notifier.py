@@ -128,6 +128,8 @@ def send_discord(name, price, old_price, link):
 
     }
 
+    print("Sending price to Discord:", price)
+    
     response = requests.post(
         DISCORD_WEBHOOK,
         json=payload,
