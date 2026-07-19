@@ -129,11 +129,14 @@ def send_discord(name, price, old_price, link):
     }
 
 
-    requests.post(
-        DISCORD_WEBHOOK,
-        json=payload,
-        timeout=10
-    )
+response = requests.post(
+    DISCORD_WEBHOOK,
+    json=payload,
+    timeout=10
+)
+
+print("Discord status:", response.status_code)
+print(response.text)
 
 
 
@@ -271,9 +274,14 @@ def check_product(name, url):
     previous = old_prices.get(name)
 
 
-    if previous != price:
+print("Previous:", previous)
+print("Current:", price)
 
-        send_discord(
+if previous != price:
+
+    print("Sending Discord alert!")
+
+    send_discord(
             title,
             price,
             previous,
