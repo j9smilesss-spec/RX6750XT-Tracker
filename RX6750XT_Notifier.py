@@ -246,6 +246,7 @@ def check_product(name, url):
 
 
     print("Prices found:", prices[:20])
+    print("Using price:", min([float(p) for p in prices]))
     prices = [
         float(p)
         for p in prices
