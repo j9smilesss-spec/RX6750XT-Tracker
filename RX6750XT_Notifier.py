@@ -267,7 +267,7 @@ def check_product(name, url):
     if not valid:
 
         print("No valid price")
-        return
+    return
 
 
     price = min(valid)
