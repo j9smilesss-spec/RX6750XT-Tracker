@@ -223,28 +223,28 @@ def check_product(name, url):
         return
 
 
-    # Find price from Newegg JSON data
+    # Find price from Newegg page data
     html = product_response.text
-    print(html[:1000])
 
-    prices = re.findall(
-        r'"currentPrice"\s*:\s*\{.*?"price"\s*:\s*"?(\d+\.\d{2})',
-        html
-    )
+    prices = []
 
-    if not prices:
-        prices = re.findall(
-            r'"price"\s*:\s*"(\d+\.\d{2})"',
-            html
-        )
+    patterns = [
+        r'"price"\s*:\s*"?(\d+\.\d{2})',
+        r'"finalPrice"\s*:\s*"?(\d+\.\d{2})',
+        r'"salePrice"\s*:\s*"?(\d+\.\d{2})',
+        r'"currentPrice"\s*:\s*"?(\d+\.\d{2})',
+        r'"displayPrice"\s*:\s*"?(\d+\.\d{2})',
+        r'\$(\d+\.\d{2})'
+    ]
 
-    if not prices:
-        prices = re.findall(
-            r'\$(\d+\.\d{2})',
-            html
-        )
+    for pattern in patterns:
+        found = re.findall(pattern, html)
 
-    print("Prices found:", prices[:10])
+        if found:
+            prices.extend(found)
+
+
+    print("Prices found:", prices[:20])
     prices = [
         float(p)
         for p in prices
