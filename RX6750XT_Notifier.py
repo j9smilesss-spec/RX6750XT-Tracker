@@ -10,8 +10,8 @@ from datetime import datetime
 # SETTINGS
 # =========================
 
-MAX_PRICE = 500
-MIN_PRICE = 250
+MAX_PRICE = 10000
+MIN_PRICE = 1
 
 DISCORD_WEBHOOK = os.environ["DISCORD_WEBHOOK"]
 DISCORD_USER_ID = os.environ["DISCORD_USER_ID"]
