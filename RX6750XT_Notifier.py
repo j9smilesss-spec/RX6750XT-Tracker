@@ -225,6 +225,11 @@ def check_product(name, url):
 
     # Find price from Newegg page data
     html = product_response.text
+    
+    print("Length of product page:", len(html))
+
+for keyword in ["price", "Price", "299", "300", "sale", "product"]:
+    print(keyword, html.find(keyword))
 
     prices = []
 
