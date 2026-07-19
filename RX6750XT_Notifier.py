@@ -223,17 +223,23 @@ def check_product(name, url):
         return
 
 
-    # Find price from Newegg page source
+    # Find price from Newegg embedded data
     html = product_response.text
 
     prices = re.findall(
-        r'"price":"(\d+\.\d{2})"',
+        r'"finalPrice"\s*:\s*"?(\d+\.\d{2})',
         html
     )
 
     if not prices:
         prices = re.findall(
-            r'\$(\d+\.\d{2})',
+            r'"salePrice"\s*:\s*"?(\d+\.\d{2})',
+            html
+        )
+
+    if not prices:
+        prices = re.findall(
+            r'"price"\s*:\s*"?(\d+\.\d{2})',
             html
         )
 
