@@ -210,7 +210,7 @@ def check_product(name, url):
         product_response = requests.get(
             product_link,
             headers=HEADERS,
-            timeout=30
+            timeout=60
         )
 
         product_soup = BeautifulSoup(
@@ -237,6 +237,7 @@ def check_product(name, url):
             html
         )
 
+    print("Prices found:", prices[:10])
     prices = [
         float(p)
         for p in prices
