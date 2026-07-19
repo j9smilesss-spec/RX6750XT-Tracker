@@ -146,11 +146,15 @@ def check_product(name, url):
     print("Checking:", name)
 
 
+try:
     response = requests.get(
         url,
         headers=HEADERS,
-        timeout=20
+        timeout=30,
     )
+except requests.exceptions.RequestException as e:
+    print(f"{name} failed: {e}")
+    return
 
 
     soup = BeautifulSoup(
