@@ -11,7 +11,7 @@ from datetime import datetime
 # =========================
 
 MAX_PRICE = 315
-MIN_PRICE = 250
+MIN_PRICE = 150
 
 DISCORD_WEBHOOK = os.environ["DISCORD_WEBHOOK"]
 DISCORD_USER_ID = os.environ["DISCORD_USER_ID"]
@@ -206,11 +206,30 @@ def check_product(name, url):
 
 
     # Get price from page text
-    text = soup.get_text(" ", strip=True)
+    # Load the actual product page for price
+    try:
+        product_response = requests.get(
+            product_link,
+            headers=HEADERS,
+            timeout=30
+        )
+
+        product_soup = BeautifulSoup(
+            product_response.text,
+            "html.parser"
+        )
+
+    except requests.exceptions.RequestException as e:
+        print("Product page failed:", e)
+        return
+
+
+    # Get price from actual product page
+    product_text = product_soup.get_text(" ", strip=True)
 
     prices = re.findall(
         r"\$(\d+\.\d{2})",
-        text
+        product_text
     )
 
 
