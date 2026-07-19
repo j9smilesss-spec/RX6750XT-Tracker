@@ -149,7 +149,7 @@ def check_product(name, url):
         response = requests.get(
             url,
             headers=HEADERS,
-            timeout=30
+            timeout=60
         )
     except requests.exceptions.RequestException as e:
         print(f"{name} failed: {e}")
