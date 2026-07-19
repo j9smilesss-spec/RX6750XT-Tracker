@@ -158,6 +158,7 @@ def check_product(name, url):
     text = soup.get_text(" ", strip=True)
 
     print("Status Code:", response.status_code)
+    print(response.text)
     print("Downloaded", len(response.text), "characters")
 
     prices = re.findall(r"\$(\d+\.\d{2})", text)
