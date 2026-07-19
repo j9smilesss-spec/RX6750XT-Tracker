@@ -24,7 +24,11 @@ DATA_FILE = "prices.json"
 
 PRODUCTS = {
     "AMD Radeon RX 6750 XT": 
-    "https://pcpartpicker.com/products/video-card/#c=518"
+    "Best Buy – AMD Radeon RX 6750 XT GPUs"
+    "B&H – XFX Radeon RX 6750 XT"
+    "Newegg – RX 6750 XT Search"
+    "Walmart – RX 6750 XT Search"
+    "eBay – RX 6750 XT Search"
 }
 
 
