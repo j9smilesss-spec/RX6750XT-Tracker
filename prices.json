@@ -34,5 +34,9 @@
     "Newegg|MSI Gaming Radeon RX 6750 XT 192-bit 12GB GDDR6 DP/HDMI Triple Torx 4.0 Fans FreeSync DirectX 12 VR Ready OC Graphics Card (RX 6750 XT GAMING X TRIO 12G)": {
         "price": 869,
         "in_stock": true
+    },
+    "Newegg|GIGABYTE Gaming OC Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 ATX Graphics Card GV-R675XTGAMING OC-12GD": {
+        "price": 869,
+        "in_stock": true
     }
 }
