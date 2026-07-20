@@ -17,7 +17,7 @@ from bs4 import BeautifulSoup
 # =========================
 # SETTINGS
 # =========================
-MAX_PRICE = 320
+MAX_PRICE = 8000
 GPU_FLOOR = 240
 
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "")
