@@ -274,7 +274,7 @@ for pattern in patterns:
 
 
     if not possible_prices:
-        print("No realistic GPU price found")
+        print("No realistic price found")
         return
 
 
