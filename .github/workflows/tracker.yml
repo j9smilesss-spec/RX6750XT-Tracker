@@ -3,32 +3,38 @@ name: RX 6750 XT Price Tracker
 on:
   schedule:
     - cron: "0 */2 * * *"
-
   workflow_dispatch:
 
 jobs:
   tracker:
-
     runs-on: ubuntu-latest
 
     steps:
-
     - name: Checkout
-      uses: actions/checkout@v5
+      uses: actions/checkout@v4
 
     - name: Setup Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v5
       with:
         python-version: "3.12"
 
+    - name: Cache Playwright browsers
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: pw-chromium-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          pw-chromium-${{ runner.os }}-
+
     - name: Install packages
       run: |
-        pip install requests beautifulsoup4
+        pip install playwright beautifulsoup4
+
+    - name: Install Playwright Chromium + system deps
+      run: playwright install --with-deps chromium
 
     - name: Run tracker
       env:
         DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         DISCORD_USER_ID: ${{ secrets.DISCORD_USER_ID }}
-
-      run: |
-        python RX6750XT_Notifier.py
+      run: python RX6750XT_Notifier.py
