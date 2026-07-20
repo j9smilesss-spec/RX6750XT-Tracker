@@ -9,6 +9,10 @@ concurrency:
   group: price-tracker
   cancel-in-progress: true
 
+# THIS IS THE FIX - Gives the bot permission to push to the repo
+permissions:
+  contents: write
+
 jobs:
   tracker:
     runs-on: ubuntu-latest
