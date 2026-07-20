@@ -1,11 +1,11 @@
 """
-RX 6750 XT Price Tracker — Playwright Edition for GitHub Actions
+RX 6750 XT Price Tracker — Playwright Stealth Edition
 ================================================================
-- Sends alerts for items currently IN STOCK.
-- Alerts on price drops.
-- Alerts on restocks (Out of Stock → In Stock).
-- Alerts on first-time seen in-stock items.
-- Stays silent if the price and stock haven't changed.
+- Uses playwright-stealth to bypass bot protection.
+- Runs all 5 stores concurrently (much faster).
+- Only alerts for IN STOCK items (Price drops & Restocks).
+- Better regex catches variants like "RX6750XT" (no spaces).
+- Alerts you if the scraper gets completely blocked.
 """
 
 import os
@@ -15,6 +15,7 @@ import time
 import requests as req
 from datetime import datetime
 from bs4 import BeautifulSoup
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # =========================
 # SETTINGS
@@ -68,7 +69,7 @@ def send_discord(store, name, price, old_price, link, is_restock=False):
 
     embed = {
         "title": title,
-        "color": 65280 if not is_restock else 16776960,  # Green for deals, Yellow for restock
+        "color": 65280 if not is_restock else 16776960,
         "fields": [
             {"name": "🏪 Store", "value": store, "inline": False},
             {"name": "🎮 GPU",   "value": name,  "inline": False},
@@ -91,7 +92,6 @@ def send_discord(store, name, price, old_price, link, is_restock=False):
 # HELPERS
 # =========================
 def extract_price(text):
-    """Pull first XXX.XX from text → float or None."""
     if not text:
         return None
     m = re.search(r"[\d,]+\.\d{2}", str(text))
@@ -108,7 +108,7 @@ def is_gpu_price(val):
 def report_products(store, products):
     if not products:
         print(f"  ❌ No RX 6750 XT deals found.\n")
-        return
+        return 0
 
     best = {}
     for p in products:
@@ -120,6 +120,7 @@ def report_products(store, products):
         elif p.get("price") is not None and (best[k].get("price") is None or p["price"] < best[k]["price"]):
             best[k] = p
 
+    alerts_sent = 0
     for prod in best.values():
         name     = prod["title"]
         price    = prod["price"]
@@ -136,7 +137,6 @@ def report_products(store, products):
             print()
             continue
 
-        # Get previous state (backward compatible with old prices.json)
         prev_data = old_prices.get(key)
         if isinstance(prev_data, (int, float)):
             prev_data = {"price": float(prev_data), "in_stock": True}
@@ -144,38 +144,31 @@ def report_products(store, products):
         prev_price = prev_data.get("price") if prev_data else None
         prev_stock = prev_data.get("in_stock") if prev_data else None
 
-        # --- ALERT LOGIC ---
         if not in_stock:
             print(f"  ❌ Out of stock — waiting for restock (no alert)")
-        
-        else:  # Item is IN STOCK
+        else:
             if prev_price is None:
-                # First time we've ever seen this item in stock
                 print(f"  🆕 First time seen and in stock! Alerting Discord")
                 send_discord(store, name, price, None, link, is_restock=False)
-            
+                alerts_sent += 1
             elif prev_stock == False:
-                # Was out of stock, now it's back!
                 print(f"  🎉 BACK IN STOCK at ${price:.2f}! Alerting Discord")
                 send_discord(store, name, price, prev_price, link, is_restock=True)
-            
+                alerts_sent += 1
             elif price < prev_price:
-                # Price dropped!
                 print(f"  📬 Price dropped ${prev_price:.2f} → ${price:.2f}! Alerting Discord")
                 send_discord(store, name, price, prev_price, link, is_restock=False)
-            
+                alerts_sent += 1
             elif price > prev_price:
                 print(f"  📈 Price went up ${prev_price:.2f} → ${price:.2f} (no alert)")
-            
             else:
                 print(f"     No change: ${price:.2f} (no alert)")
-        
         print()
 
-        # Save current state (price + stock status)
         old_prices[key] = {"price": price, "in_stock": in_stock}
 
     save_data(old_prices)
+    return alerts_sent
 
 
 # ================================================================
@@ -189,6 +182,8 @@ class Browser:
 
     def start(self):
         from playwright.sync_api import sync_playwright
+        from playwright_stealth import stealth_sync
+
         self.pw = sync_playwright().start()
         self.browser = self.pw.chromium.launch(
             headless=True,
@@ -207,12 +202,10 @@ class Browser:
             viewport={"width": 1920, "height": 1080},
             locale="en-US",
         )
-        self.context.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-            Object.defineProperty(navigator, 'plugins', {get: () => [1,2,3,4,5]});
-            Object.defineProperty(navigator, 'languages', {get: () => ['en-US','en']});
-            window.chrome = {runtime: {}};
-        """)
+        # Apply stealth automatically
+        def on_page_created(page):
+            stealth_sync(page)
+        self.context.on("page", on_page_created)
 
     def stop(self):
         try:
@@ -222,7 +215,10 @@ class Browser:
             pass
 
     def new_page(self):
-        return self.context.new_page()
+        from playwright_stealth import stealth_sync
+        page = self.context.new_page()
+        stealth_sync(page)
+        return page
 
     def fetch(self, url, wait_sel=None, extra_wait=2, timeout=25000):
         page = self.new_page()
@@ -303,7 +299,7 @@ def scrape_newegg(b: Browser):
                 const a = cell.querySelector('a.item-title');
                 if (!a) return;
                 const title = a.textContent.trim();
-                if (!title.toLowerCase().includes('6750')) return;
+                if (!title.toLowerCase().match(/6750\\s*xt/)) return;
                 const link = a.href;
                 
                 let price = null;
@@ -348,7 +344,7 @@ def _parse_newegg_html(html):
         if not a:
             continue
         title = a.get_text(" ", strip=True)
-        if "6750" not in title.lower():
+        if not re.search(r'6750\s*xt', title.lower()):
             continue
         link = a.get("href", "")
         if link.startswith("/"):
@@ -388,7 +384,7 @@ def _parse_newegg_html(html):
                     items = sr
                 for item in items:
                     title = item.get("Title", item.get("title", ""))
-                    if "6750" not in title.lower():
+                    if not re.search(r'6750\s*xt', title.lower()):
                         continue
                     link = item.get("Link", item.get("link", ""))
                     if link and link.startswith("/"):
@@ -423,7 +419,7 @@ def scrape_bestbuy(b: Browser):
                 );
                 if (!a) return;
                 const title = a.textContent.trim();
-                if (!title.toLowerCase().includes('6750')) return;
+                if (!title.toLowerCase().match(/6750\\s*xt/)) return;
                 const link = a.href;
                 
                 let price = null;
@@ -469,7 +465,7 @@ def _parse_bestbuy_html(html):
         if not a:
             continue
         title = a.get_text(" ", strip=True)
-        if "6750" not in title.lower():
+        if not re.search(r'6750\s*xt', title.lower()):
             continue
         link = a.get("href", "")
         if link.startswith("/"):
@@ -507,7 +503,7 @@ def scrape_bhphoto(b: Browser):
                 );
                 if (!titleEl) return;
                 const title = titleEl.textContent.trim();
-                if (!title.toLowerCase().includes('6750')) return;
+                if (!title.toLowerCase().match(/6750\\s*xt/)) return;
                 const link = titleEl.href;
                 
                 let price = null;
@@ -549,7 +545,7 @@ def _parse_bhphoto_html(html):
         if not a:
             continue
         title = a.get_text(" ", strip=True)
-        if "6750" not in title.lower():
+        if not re.search(r'6750\s*xt', title.lower()):
             continue
         link = a.get("href", "")
         if link.startswith("/"):
@@ -587,7 +583,7 @@ def scrape_walmart(b: Browser):
                     const items = (sc.itemStacks || [{}])[0].items || props.products || [];
                     items.forEach(item => {
                         const name = item.name || item.title || '';
-                        if (!name.toLowerCase().includes('6750')) return;
+                        if (!name.toLowerCase().match(/6750\\s*xt/)) return;
                         let link = item.canonicalUrl || item.productPageUrl || '';
                         if (link && !link.startsWith('http'))
                             link = 'https://www.walmart.com' + link;
@@ -611,7 +607,7 @@ def scrape_walmart(b: Browser):
                     );
                     if (!te) return;
                     const title = te.textContent.trim();
-                    if (!title.toLowerCase().includes('6750')) return;
+                    if (!title.toLowerCase().match(/6750\\s*xt/)) return;
                     const le = el.querySelector('a[href*="/ip/"]');
                     const link = le ? le.href : '';
                     let price = null;
@@ -650,7 +646,7 @@ def _parse_walmart_html(html):
             items = (sc.get("itemStacks", [{}])[0].get("items", []) or props.get("products", []))
             for item in items:
                 name = item.get("name", "") or item.get("title", "")
-                if "6750" not in name.lower():
+                if not re.search(r'6750\s*xt', name.lower()):
                     continue
                 link = item.get("canonicalUrl", "") or item.get("productPageUrl", "")
                 if link and not link.startswith("http"):
@@ -703,7 +699,7 @@ def scrape_ebay(b: Browser):
                 if (!te) return;
                 const title = te.textContent.trim();
                 const tl = title.toLowerCase();
-                if (!tl.includes('6750')) return;
+                if (!tl.match(/6750\\s*xt/)) return;
                 if (skip.some(w => tl.includes(w))) return;
                 const le = item.querySelector('.s-item__link');
                 const link = le ? le.href : '';
@@ -739,7 +735,7 @@ def _parse_ebay_html(html):
             continue
         title = te.get_text(" ", strip=True)
         tl = title.lower()
-        if "6750" not in tl:
+        if not re.search(r'6750\s*xt', tl):
             continue
         if any(w in tl for w in SKIP):
             continue
@@ -757,7 +753,7 @@ def _parse_ebay_html(html):
 
 # =========================
 # MAIN
-# =========================
+# ================================
 if __name__ == "__main__":
     browser = Browser()
     print("Launching headless browser…")
@@ -766,7 +762,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Failed to start browser: {e}")
         print("Make sure Playwright is installed:")
-        print("  pip install playwright")
+        print("  pip install playwright playwright-stealth")
         print("  playwright install --with-deps chromium")
         raise SystemExit(1)
 
@@ -778,15 +774,33 @@ if __name__ == "__main__":
         ("eBay",     scrape_ebay),
     ]
 
-    try:
-        for store, func in SCRAPERS:
+    total_found = 0
+
+    # Run all 5 scrapers concurrently using threads (much faster)
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_store = {
+            executor.submit(func, browser): store 
+            for store, func in SCRAPERS
+        }
+        
+        for future in as_completed(future_to_store):
+            store = future_to_store[future]
             try:
-                products = func(browser)
+                products = future.result()
+                total_found += len(products)
                 report_products(store, products)
             except Exception as e:
                 print(f"❌ {store} crashed: {e}\n")
-            time.sleep(2)
-    finally:
-        browser.stop()
+
+    browser.stop()
+
+    # Alert if the script gets completely blocked or breaks
+    if total_found == 0:
+        print("⚠️ No products found on ANY store. Scrapers might be blocked or broken.")
+        try:
+            req.post(DISCORD_WEBHOOK, json={
+                "content": f"<@{DISCORD_USER_ID}> ⚠️ The RX 6750 XT tracker found 0 results across all stores. It might be blocked or broken! Check the logs.",
+            }, timeout=10)
+        except: pass
 
     print("✅ Done.")
