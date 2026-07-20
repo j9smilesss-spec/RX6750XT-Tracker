@@ -25,7 +25,7 @@ DATA_FILE = "prices.json"
 PRODUCTS = {
     "Best Buy": "https://www.bestbuy.com/site/searchpage.jsp?st=rx+6750+xt",
     "B&H": "https://www.bhphotovideo.com/c/search?q=RX%206750%20XT",
-    "Newegg": "https://www.newegg.com/p/pl?d=RX+6750+XT",
+"Newegg": "https://www.newegg.com/asrock-challenger-pro-rx6750xt-clp-12go-radeon-rx-6750-xt-12gb-graphics-card-triple-fans/p/N82E16814930071",
     "Walmart": "https://www.walmart.com/search?q=RX+6750+XT",
     "eBay": "https://www.ebay.com/sch/i.html?_nkw=RX+6750+XT"
 }
@@ -248,18 +248,35 @@ def check_product(name, url):
             prices.append(value)
 
 
-    print("Prices found:", prices[:20])
+print("Prices found:", prices[:20])
 
-    if not prices:
-        print("No valid price")
-        return
+if not prices:
+    print("No valid price")
+    return
 
 
-    from collections import Counter
+# Remove duplicate prices and sort
+unique_prices = sorted(set(prices))
 
-    price = Counter(prices).most_common(1)[0][0]
+print("Unique prices:", unique_prices)
 
-    print("Using price:", price)
+
+# Prefer realistic GPU prices
+possible_prices = [
+    p for p in unique_prices
+    if 240 <= p <= 315
+]
+
+
+if not possible_prices:
+    print("No realistic GPU price found")
+    return
+
+
+# Pick the lowest realistic price
+price = min(possible_prices)
+
+print("Using price:", price)
 
     previous = old_prices.get(name)
 
