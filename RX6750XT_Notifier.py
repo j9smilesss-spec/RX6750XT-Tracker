@@ -207,11 +207,10 @@ def check_product(name, url):
         print("Product page failed:", e)
         return
 
-    html = product_response.text
+html = product_response.text
 
-# Save the HTML so we can inspect it
 with open("newegg.html", "w", encoding="utf-8") as f:
-f.write(html)
+    f.write(html)
 
     prices = []
 
