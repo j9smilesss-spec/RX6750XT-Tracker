@@ -260,13 +260,11 @@ for pattern in patterns:
         return
 
 
-    # Remove duplicates
     unique_prices = sorted(set(prices))
 
     print("Unique prices:", unique_prices)
 
 
-    # Ignore fake prices like $808
     possible_prices = [
         p for p in unique_prices
         if 240 <= p <= 315
@@ -280,7 +278,6 @@ for pattern in patterns:
         return
 
 
-    # Pick cheapest real RX 6750 XT price
     price = min(possible_prices)
 
     print("Using price:", price)
@@ -305,7 +302,6 @@ for pattern in patterns:
 
 
     old_prices[name] = price
-
     save_data(old_prices)
 # =========================
 # RUN
