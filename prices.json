@@ -41,7 +41,7 @@
     },
     "Newegg|Refurbished GIGABYTE AORUS Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 ATX Graphics Card GV-R675XTAORUS E-12GD": {
         "price": 249.99,
-        "in_stock": true
+        "in_stock": false
     },
     "Newegg|Refurbished MSI Mech Radeon RX 6750 XT Graphics Card RX 6750 XT MECH 2X 12G V1": {
         "price": 460,
@@ -57,62 +57,66 @@
     },
     "Newegg|Refurbished AMD RADEON RX 6750 XT Gaming Graphics Card, 7nm AMD RDNA2 12GB GDDR6 192-bit AMD Reference Card, PCIE 4.0 HDMI DP 1.4a Video Card, AMD Reference Edition Gaming Graphics Card": {
         "price": 249.99,
-        "in_stock": true
+        "in_stock": false
     },
     "Newegg|Refurbished MSI Gaming Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 Graphics Card RX 6750 XT GAMING X TRIO 12G": {
         "price": 249.99,
-        "in_stock": true
+        "in_stock": false
     },
     "Newegg|Refurbished ASRock Challenger Pro Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 Graphics Card RX6750XT CLP 12GO": {
         "price": 249.99,
-        "in_stock": true
+        "in_stock": false
     },
     "Newegg|Refurbished GIGABYTE Gaming OC Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 ATX Graphics Card GV-R675XTGAMING OC-12GD": {
         "price": 249.99,
-        "in_stock": true
+        "in_stock": false
     },
     "Newegg|Refurbished XFX SPEEDSTER QICK319 Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 ATX Video Card RX-675XYLUDP": {
         "price": 249.99,
-        "in_stock": true
+        "in_stock": false
     },
     "Newegg|Refurbished MSI Mech Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 ATX Graphics Card RX 6750 XT MECH 2X 12G V1": {
         "price": 249.99,
-        "in_stock": true
+        "in_stock": false
     },
     "Newegg|Refurbished ASRock Phantom Gaming D Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 Graphics Card RX6750XT PGD 12GO": {
         "price": 249.99,
-        "in_stock": true
+        "in_stock": false
     },
     "Newegg|Refurbished SAPPHIRE NITRO+ Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 ATX Graphics Card 11318-01-20G": {
         "price": 249.99,
-        "in_stock": true
+        "in_stock": false
     },
     "Newegg|Refurbished PowerColor RED DEVIL Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 ATX Graphics Card AXRX 6750XT 12GBD6-3DHE/OC": {
         "price": 249.99,
-        "in_stock": true
+        "in_stock": false
     },
     "Newegg|Refurbished ASUS ROG Strix AMD Radeon RX 6750 XT OC Edition Gaming Graphics Card (AMD RNDA 2, PCIe 4.0, 12GB GDDR6, HDMI 2.1, DisplayPort 1.4a, Axial-tech Fan Design, 2.9-slot, Super Alloy Power II, GPU Tweak)": {
         "price": 249.99,
-        "in_stock": true
+        "in_stock": false
     },
     "Newegg|Refurbished XFX SPEEDSTER MERC319 Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 Graphics Card RX-675XYTBDP": {
         "price": 249.99,
-        "in_stock": true
+        "in_stock": false
     },
     "Newegg|Refurbished PowerColor Fighter Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 ATX Graphics Card AXRX 6750XT 12GBD6-3DH": {
         "price": 249.99,
-        "in_stock": true
+        "in_stock": false
     },
     "Newegg|Refurbished XFX SPEEDSTER QICK319 RADEON RX 6750 XT CORE Gaming Graphics Card": {
         "price": 249.99,
-        "in_stock": true
+        "in_stock": false
     },
     "Newegg|Refurbished MSI Mech Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 Graphics Card RX 6750 XT MECH 2X 12G OC": {
         "price": 249.99,
-        "in_stock": true
+        "in_stock": false
     },
     "Newegg|Refurbished ASUS Dual AMD Radeon RX 6750 XT OC Edition 12GB GDDR6 Gaming Graphics Card (AMD RDNA 2, PCIe 4.0, 12GB GDDR6 Memory, HDMI 2.1, DisplayPort 1.4a, Axial-tech Fan Design, 0dB Technology, Overclocked)": {
         "price": 249.99,
+        "in_stock": false
+    },
+    "Newegg|GIGABYTE AORUS Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 ATX Graphics Card GV-R675XTAORUS E-12GD": {
+        "price": 869,
         "in_stock": true
     }
 }
