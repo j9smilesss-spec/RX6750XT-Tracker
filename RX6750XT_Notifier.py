@@ -1,11 +1,9 @@
 """
 RX 6750 XT Price Tracker — Playwright Edition
 ================================================================
-- Uses manual stealth injection (no external stealth package needed).
-- Runs stores sequentially to prevent thread-crashing.
+- Smarter stock detection (looks for Add to Cart buttons).
+- Silently tracks out-of-stock items for restocks without log spam.
 - Only alerts for IN STOCK items UNDER the max price threshold.
-- Better regex catches variants like "RX6750XT" (no spaces).
-- Alerts you if the scraper gets completely blocked.
 """
 
 import os
@@ -147,14 +145,18 @@ def report_products(store, products):
         in_stock = prod.get("in_stock", True)
         key      = f"{store}|{name}"
 
-        print(f"  🎮  {name}")
-        print(f"  💰  ${price:.2f}" if price else "  💰  Price not found")
-        print(f"  📦  {'In Stock' if in_stock else 'OUT OF STOCK'}")
-        print(f"  🔗  {link}")
+        # If it's out of stock, silently save it for restock tracking, but don't spam the log
+        if not in_stock:
+            old_prices[key] = {"price": price, "in_stock": False}
+            continue
 
         if price is None:
-            print()
             continue
+
+        print(f"  🎮  {name}")
+        print(f"  💰  ${price:.2f}")
+        print(f"  📦  In Stock")
+        print(f"  🔗  {link}")
 
         prev_data = old_prices.get(key)
         if isinstance(prev_data, (int, float)):
@@ -163,9 +165,7 @@ def report_products(store, products):
         prev_price = prev_data.get("price") if prev_data else None
         prev_stock = prev_data.get("in_stock") if prev_data else None
 
-        if not in_stock:
-            print(f"  ❌ Out of stock — waiting for restock (no alert)")
-        elif price > MAX_PRICE:
+        if price > MAX_PRICE:
             print(f"  💸 Price ${price:.2f} is above ${MAX_PRICE} threshold (no alert)")
         else:
             if prev_price is None:
@@ -186,7 +186,7 @@ def report_products(store, products):
                 print(f"     No change: ${price:.2f} (no alert)")
         
         print()
-        old_prices[key] = {"price": price, "in_stock": in_stock}
+        old_prices[key] = {"price": price, "in_stock": True}
 
     save_data(old_prices)
     return alerts_sent
@@ -306,6 +306,7 @@ def scrape_newegg(b: Browser):
     print("\n🔍 NEWEGG")
     url = PRODUCTS["Newegg"]
 
+    # Improved: Looks for "Add to Cart" button explicitly
     products = b.js(url, """
         (() => {
             const out = [];
@@ -332,11 +333,12 @@ def scrape_newegg(b: Browser):
                     if (m) price = parseFloat(m[1].replace(/,/g, ''));
                 }
                 
-                const btnBox = cell.querySelector('.item-button-box');
-                const txt = btnBox ? btnBox.textContent.toLowerCase() : '';
-                const isOOS = txt.includes('out of stock') || txt.includes('auto notify');
+                // Stock check: Prioritize Add to Cart button, else check text
+                const hasATC = !!cell.querySelector('a.btn-primary, button.btn-primary');
+                const cellText = cell.textContent.toLowerCase();
+                const isOOS = cellText.includes('out of stock') || cellText.includes('auto notify') || cellText.includes('sold out');
                 
-                out.push({title, price, link, in_stock: !isOOS});
+                out.push({title, price, link, in_stock: hasATC || !isOOS});
             });
             return out;
         })()
@@ -379,11 +381,11 @@ def _parse_newegg_html(html):
         if price is None:
             price = extract_price(cell.get_text())
 
-        btn_box = cell.select_one(".item-button-box")
-        btn_text = btn_box.get_text().lower() if btn_box else ""
-        is_oos = "out of stock" in btn_text or "auto notify" in btn_text
+        has_atc = bool(cell.select_one("a.btn-primary, button.btn-primary"))
+        cell_text = cell.get_text().lower()
+        is_oos = "out of stock" in cell_text or "auto notify" in cell_text or "sold out" in cell_text
 
-        products.append({"title": title, "price": price, "link": link, "in_stock": not is_oos})
+        products.append({"title": title, "price": price, "link": link, "in_stock": has_atc or not is_oos})
     
     if not products:
         m = re.search(r"window\.__INITIAL_STATE__\s*=\s*({.*?});", html, re.DOTALL)
@@ -422,6 +424,7 @@ def scrape_bestbuy(b: Browser):
     print("\n🔍 BEST BUY")
     url = PRODUCTS["Best Buy"]
 
+    # Improved: If Add to Cart exists, it's definitely in stock
     products = b.js(url, """
         (() => {
             const out = [];
@@ -457,7 +460,11 @@ def scrape_bestbuy(b: Browser):
                     'button.sold-out-button, div.fulfillment-sold-out'
                 );
                 
-                out.push({title, price, link, in_stock: hasAddToCart && !isSoldOut});
+                let inStock = false;
+                if (hasAddToCart) inStock = true;
+                else if (isSoldOut) inStock = false;
+                
+                out.push({title, price, link, in_stock: inStock});
             });
             return out;
         })()
@@ -493,8 +500,9 @@ def _parse_bestbuy_html(html):
             
         has_atc = bool(item.select_one("button.add-to-cart-button"))
         is_oos = bool(item.select_one("button.sold-out-button, div.fulfillment-sold-out"))
+        in_stock = has_atc or not is_oos
         
-        products.append({"title": title, "price": price, "link": link, "in_stock": has_atc and not is_oos})
+        products.append({"title": title, "price": price, "link": link, "in_stock": in_stock})
     return products
 
 
@@ -606,7 +614,7 @@ def scrape_walmart(b: Browser):
                         if (price !== null) price = parseFloat(price);
                         
                         const status = (item.availabilityStatus || '').toUpperCase();
-                        const isOOS = status === 'OUT_OF_STOCK' || status === 'PREORDER' || item.oos === true;
+                        const isOOS = status === 'OUT_OF_STOCK' || status === 'PREORDER';
                         
                         out.push({title: name, price, link, in_stock: !isOOS});
                     });
@@ -671,146 +679,3 @@ def _parse_walmart_html(html):
                     price = float(price_val)
                 except (ValueError, TypeError):
                     price = None
-                status = (item.get("availabilityStatus", "")).upper()
-                is_oos = status == "OUT_OF_STOCK" or item.get("oos") == True
-                products.append({"title": name, "price": price, "link": link, "in_stock": not is_oos})
-        except: pass
-
-    if not products:
-        price_hits = set()
-        for p_str in re.findall(r"\$([\d,]+\.\d{2})", html):
-            try:
-                val = float(p_str.replace(",", ""))
-                if GPU_FLOOR <= val <= MAX_PRICE:
-                    price_hits.add(val)
-            except ValueError: pass
-        for slug in re.findall(r'href="/ip/([^"]*6750[^"]*)"', html, re.I):
-            products.append({
-                "title": "RX 6750 XT",
-                "price": min(price_hits) if price_hits else None,
-                "link":  f"https://www.walmart.com/ip/{slug}",
-                "in_stock": True
-            })
-    return products
-
-
-# ================================================================
-#  EBAY
-# ================================================================
-def scrape_ebay(b: Browser):
-    print("\n🔍 EBAY")
-    url = PRODUCTS["eBay"]
-    SKIP = ['cable','adapter','bracket','riser','power','cooler',
-            'thermal','case','fan','holder','support','hdmi',
-            'displayport','pcie','backplate','screw','nut']
-
-    products = b.js(url, f"""
-        (() => {{
-            const skip = {json.dumps(SKIP)};
-            const out = [];
-            document.querySelectorAll('li.s-item').forEach(item => {{
-                const te = item.querySelector('.s-item__title');
-                if (!te) return;
-                const title = te.textContent.trim();
-                const tl = title.toLowerCase();
-                if (!tl.match(/6750\\s*xt/)) return;
-                if (skip.some(w => tl.includes(w))) return;
-                const le = item.querySelector('.s-item__link');
-                const link = le ? le.href : '';
-                let price = null;
-                const pe = item.querySelector('.s-item__price');
-                if (pe) {{
-                    const m = pe.textContent.match(/([\\d,]+\\.\\d{{2}})/);
-                    if (m) price = parseFloat(m[1].replace(/,/g, ''));
-                }}
-                out.push({{title, price, link, in_stock: true}});
-            }});
-            return out;
-        }})()
-    """, wait_sel="li.s-item")
-
-    if not products:
-        html = b.fetch(url, wait_sel="li.s-item")
-        b.debug_save("ebay", html)
-        products = _parse_ebay_html(html)
-
-    return products
-
-
-def _parse_ebay_html(html):
-    SKIP = ['cable','adapter','bracket','riser','power','cooler',
-            'thermal','case','fan','holder','support','hdmi',
-            'displayport','pcie','backplate','screw','nut']
-    products = []
-    soup = BeautifulSoup(html, "html.parser")
-    for item in soup.select("li.s-item"):
-        te = item.select_one(".s-item__title")
-        if not te:
-            continue
-        title = te.get_text(" ", strip=True)
-        tl = title.lower()
-        if not re.search(r'6750\s*xt', tl):
-            continue
-        if any(w in tl for w in SKIP):
-            continue
-        le = item.select_one(".s-item__link")
-        link = le.get("href", "") if le else ""
-        price = None
-        pe = item.select_one(".s-item__price")
-        if pe:
-            price = extract_price(pe.get_text())
-        if price is None:
-            price = extract_price(item.get_text())
-        products.append({"title": title, "price": price, "link": link, "in_stock": True})
-    return products
-
-
-# =========================
-# MAIN
-# ================================
-if __name__ == "__main__":
-    browser = Browser()
-    print("Launching headless browser…")
-    try:
-        browser.start()
-    except Exception as e:
-        print(f"❌ Failed to start browser: {e}")
-        print("Make sure Playwright is installed:")
-        print("  pip install playwright")
-        print("  playwright install --with-deps chromium")
-        raise SystemExit(1)
-
-    SCRAPERS = [
-        ("Newegg",   scrape_newegg),
-        ("Best Buy", scrape_bestbuy),
-        ("B&H",      scrape_bhphoto),
-        ("Walmart",  scrape_walmart),
-        ("eBay",     scrape_ebay),
-    ]
-
-    total_found = 0
-
-    # Run sequentially to prevent Playwright thread-crashing
-    for store, func in SCRAPERS:
-        try:
-            products = func(browser)
-            total_found += len(products)
-            report_products(store, products)
-        except Exception as e:
-            print(f"❌ {store} crashed: {e}\n")
-        time.sleep(1)
-
-    browser.stop()
-
-    if total_found == 0:
-        print("⚠️ No products found on ANY store. Scrapers might be blocked or broken.")
-        try:
-            req.post(DISCORD_WEBHOOK, json={
-                "content": f"<@{DISCORD_USER_ID}> ⚠️ The RX 6750 XT tracker found 0 results across all stores. It might be blocked or broken! Check the logs.",
-            }, timeout=10)
-        except: pass
-
-    # ALWAYS save the data file at the end so GitHub Actions can commit it
-    save_data(old_prices)
-
-    print("✅ Done.")
