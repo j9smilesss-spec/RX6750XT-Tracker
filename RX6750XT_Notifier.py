@@ -3,7 +3,7 @@ RX 6750 XT Price Tracker — Playwright Stealth Edition
 ================================================================
 - Uses playwright-stealth to bypass bot protection.
 - Runs all 5 stores concurrently (much faster).
-- Only alerts for IN STOCK items (Price drops & Restocks).
+- Only alerts for IN STOCK items UNDER the max price threshold.
 - Better regex catches variants like "RX6750XT" (no spaces).
 - Alerts you if the scraper gets completely blocked.
 """
@@ -20,8 +20,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # =========================
 # SETTINGS
 # =========================
-MAX_PRICE = 315
-GPU_FLOOR = 240  # filter out accessories
+MAX_PRICE = 320  # Only alert if price is at or below this amount (e.g., around $315)
+GPU_FLOOR = 240  # Filter out accessories/cables priced below this
 
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "")
 DISCORD_USER_ID = os.environ.get("DISCORD_USER_ID", "")
@@ -137,6 +137,7 @@ def report_products(store, products):
             print()
             continue
 
+        # Get previous state (backward compatible with old prices.json)
         prev_data = old_prices.get(key)
         if isinstance(prev_data, (int, float)):
             prev_data = {"price": float(prev_data), "in_stock": True}
@@ -144,11 +145,17 @@ def report_products(store, products):
         prev_price = prev_data.get("price") if prev_data else None
         prev_stock = prev_data.get("in_stock") if prev_data else None
 
+        # --- ALERT LOGIC ---
         if not in_stock:
             print(f"  ❌ Out of stock — waiting for restock (no alert)")
-        else:
+        
+        elif price > MAX_PRICE:
+            # Over the $315~ threshold, just track it silently
+            print(f"  💸 Price ${price:.2f} is above ${MAX_PRICE} threshold (no alert)")
+        
+        else:  # Item is IN STOCK and UNDER MAX_PRICE
             if prev_price is None:
-                print(f"  🆕 First time seen and in stock! Alerting Discord")
+                print(f"  🆕 First time seen and in stock under ${MAX_PRICE}! Alerting Discord")
                 send_discord(store, name, price, None, link, is_restock=False)
                 alerts_sent += 1
             elif prev_stock == False:
@@ -163,8 +170,10 @@ def report_products(store, products):
                 print(f"  📈 Price went up ${prev_price:.2f} → ${price:.2f} (no alert)")
             else:
                 print(f"     No change: ${price:.2f} (no alert)")
+        
         print()
 
+        # Save current state regardless of alerts so we know if it drops later
         old_prices[key] = {"price": price, "in_stock": in_stock}
 
     save_data(old_prices)
