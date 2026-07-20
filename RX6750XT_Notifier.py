@@ -679,3 +679,144 @@ def _parse_walmart_html(html):
                     price = float(price_val)
                 except (ValueError, TypeError):
                     price = None
+                status = (item.get("availabilityStatus", "")).upper()
+                is_oos = status == "OUT_OF_STOCK"
+                products.append({"title": name, "price": price, "link": link, "in_stock": not is_oos})
+        except: pass
+
+    if not products:
+        price_hits = set()
+        for p_str in re.findall(r"\$([\d,]+\.\d{2})", html):
+            try:
+                val = float(p_str.replace(",", ""))
+                if GPU_FLOOR <= val <= MAX_PRICE:
+                    price_hits.add(val)
+            except ValueError: pass
+        for slug in re.findall(r'href="/ip/([^"]*6750[^"]*)"', html, re.I):
+            products.append({
+                "title": "RX 6750 XT",
+                "price": min(price_hits) if price_hits else None,
+                "link":  f"https://www.walmart.com/ip/{slug}",
+                "in_stock": True
+            })
+    return products
+
+
+# ================================================================
+#  EBAY
+# ================================================================
+def scrape_ebay(b: Browser):
+    print("\n🔍 EBAY")
+    url = PRODUCTS["eBay"]
+    SKIP = ['cable','adapter','bracket','riser','power','cooler',
+            'thermal','case','fan','holder','support','hdmi',
+            'displayport','pcie','backplate','screw','nut']
+
+    products = b.js(url, f"""
+        (() => {{
+            const skip = {json.dumps(SKIP)};
+            const out = [];
+            document.querySelectorAll('li.s-item').forEach(item => {{
+                const te = item.querySelector('.s-item__title');
+                if (!te) return;
+                const title = te.textContent.trim();
+                const tl = title.toLowerCase();
+                if (!tl.match(/6750\\s*xt/)) return;
+                if (skip.some(w => tl.includes(w))) return;
+                const le = item.querySelector('.s-item__link');
+                const link = le ? le.href : '';
+                let price = null;
+                const pe = item.querySelector('.s-item__price');
+                if (pe) {{
+                    const m = pe.textContent.match(/([\\d,]+\\.\\d{{2}})/);
+                    if (m) price = parseFloat(m[1].replace(/,/g, ''));
+                }}
+                out.push({{title, price, link, in_stock: true}});
+            }});
+            return out;
+        }})()
+    """, wait_sel="li.s-item")
+
+    if not products:
+        html = b.fetch(url, wait_sel="li.s-item")
+        b.debug_save("ebay", html)
+        products = _parse_ebay_html(html)
+
+    return products
+
+
+def _parse_ebay_html(html):
+    SKIP = ['cable','adapter','bracket','riser','power','cooler',
+            'thermal','case','fan','holder','support','hdmi',
+            'displayport','pcie','backplate','screw','nut']
+    products = []
+    soup = BeautifulSoup(html, "html.parser")
+    for item in soup.select("li.s-item"):
+        te = item.select_one(".s-item__title")
+        if not te:
+            continue
+        title = te.get_text(" ", strip=True)
+        tl = title.lower()
+        if not re.search(r'6750\s*xt', tl):
+            continue
+        if any(w in tl for w in SKIP):
+            continue
+        le = item.select_one(".s-item__link")
+        link = le.get("href", "") if le else ""
+        price = None
+        pe = item.select_one(".s-item__price")
+        if pe:
+            price = extract_price(pe.get_text())
+        if price is None:
+            price = extract_price(item.get_text())
+        products.append({"title": title, "price": price, "link": link, "in_stock": True})
+    return products
+
+
+# =========================
+# MAIN
+# ================================
+if __name__ == "__main__":
+    browser = Browser()
+    print("Launching headless browser…")
+    try:
+        browser.start()
+    except Exception as e:
+        print(f"❌ Failed to start browser: {e}")
+        print("Make sure Playwright is installed:")
+        print("  pip install playwright")
+        print("  playwright install --with-deps chromium")
+        raise SystemExit(1)
+
+    SCRAPERS = [
+        ("Newegg",   scrape_newegg),
+        ("Best Buy", scrape_bestbuy),
+        ("B&H",      scrape_bhphoto),
+        ("Walmart",  scrape_walmart),
+        ("eBay",     scrape_ebay),
+    ]
+
+    total_found = 0
+
+    for store, func in SCRAPERS:
+        try:
+            products = func(browser)
+            total_found += len(products)
+            report_products(store, products)
+        except Exception as e:
+            print(f"❌ {store} crashed: {e}\n")
+        time.sleep(1)
+
+    browser.stop()
+
+    if total_found == 0:
+        print("⚠️ No products found on ANY store. Scrapers might be blocked or broken.")
+        try:
+            req.post(DISCORD_WEBHOOK, json={
+                "content": f"<@{DISCORD_USER_ID}> ⚠️ The RX 6750 XT tracker found 0 results across all stores. It might be blocked or broken! Check the logs.",
+            }, timeout=10)
+        except: pass
+
+    save_data(old_prices)
+
+    print("✅ Done.")
