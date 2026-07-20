@@ -261,6 +261,24 @@ unique_prices = sorted(set(prices))
 print("Unique prices:", unique_prices)
 
 
+# Keep only realistic RX 6750 XT prices
+possible_prices = [
+    p for p in unique_prices
+    if 250 <= p <= 315
+]
+
+print("Possible prices:", possible_prices)
+
+if not possible_prices:
+    print("No realistic price found")
+    return
+
+
+price = min(possible_prices)
+
+print("Using price:", price)
+
+
 # Prefer realistic GPU prices
 possible_prices = [
     p for p in unique_prices
