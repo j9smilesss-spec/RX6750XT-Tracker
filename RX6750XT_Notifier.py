@@ -1,8 +1,11 @@
 """
 RX 6750 XT Price Tracker — Playwright Edition for GitHub Actions
 ================================================================
-Uses a headless browser so stores can't block us as easily.
-Falls back to API endpoints where available.
+- Sends alerts for items currently IN STOCK.
+- Alerts on price drops.
+- Alerts on restocks (Out of Stock → In Stock).
+- Alerts on first-time seen in-stock items.
+- Stays silent if the price and stock haven't changed.
 """
 
 import os
@@ -49,16 +52,23 @@ old_prices = load_data()
 # =========================
 # DISCORD
 # =========================
-def send_discord(store, name, price, old_price, link):
+def send_discord(store, name, price, old_price, link, is_restock=False):
     change = ""
-    if old_price:
+    title = "🚨 RX 6750 XT DEAL ALERT"
+    
+    if is_restock:
+        title = "🎉 RX 6750 XT BACK IN STOCK!"
+        change = "\n📦 Was out of stock, now available!"
+    elif old_price:
         diff = old_price - price
         if diff > 0:
             change = f"\n📉 Drop: ${diff:.2f}"
+    else:
+        change = "\n🆕 New in-stock item found!"
 
     embed = {
-        "title": "🚨 RX 6750 XT DEAL ALERT",
-        "color": 65280,
+        "title": title,
+        "color": 65280 if not is_restock else 16776960,  # Green for deals, Yellow for restock
         "fields": [
             {"name": "🏪 Store", "value": store, "inline": False},
             {"name": "🎮 GPU",   "value": name,  "inline": False},
@@ -103,36 +113,67 @@ def report_products(store, products):
     best = {}
     for p in products:
         k = p["link"]
-        if k not in best or (p["price"] and (best[k]["price"] is None or p["price"] < best[k]["price"])):
+        if k not in best:
+            best[k] = p
+        elif p.get("in_stock") and not best[k].get("in_stock"):
+            best[k] = p
+        elif p.get("price") is not None and (best[k].get("price") is None or p["price"] < best[k]["price"]):
             best[k] = p
 
     for prod in best.values():
-        name  = prod["title"]
-        price = prod["price"]
-        link  = prod["link"]
-        key   = f"{store}|{name}"
+        name     = prod["title"]
+        price    = prod["price"]
+        link     = prod["link"]
+        in_stock = prod.get("in_stock", True)
+        key      = f"{store}|{name}"
 
         print(f"  🎮  {name}")
         print(f"  💰  ${price:.2f}" if price else "  💰  Price not found")
+        print(f"  📦  {'In Stock' if in_stock else 'OUT OF STOCK'}")
         print(f"  🔗  {link}")
 
         if price is None:
             print()
             continue
 
-        previous = old_prices.get(key)
+        # Get previous state (backward compatible with old prices.json)
+        prev_data = old_prices.get(key)
+        if isinstance(prev_data, (int, float)):
+            prev_data = {"price": float(prev_data), "in_stock": True}
+        
+        prev_price = prev_data.get("price") if prev_data else None
+        prev_stock = prev_data.get("in_stock") if prev_data else None
 
-        if previous is not None and previous != price:
-            print(f"  📬 Price changed! Alerting Discord")
-            send_discord(store, name, price, previous, link)
-        elif previous is None:
-            print(f"  🆕 First time seen — alerting Discord")
-            send_discord(store, name, price, None, link)
-        else:
-            print(f"     No change since last check")
+        # --- ALERT LOGIC ---
+        if not in_stock:
+            print(f"  ❌ Out of stock — waiting for restock (no alert)")
+        
+        else:  # Item is IN STOCK
+            if prev_price is None:
+                # First time we've ever seen this item in stock
+                print(f"  🆕 First time seen and in stock! Alerting Discord")
+                send_discord(store, name, price, None, link, is_restock=False)
+            
+            elif prev_stock == False:
+                # Was out of stock, now it's back!
+                print(f"  🎉 BACK IN STOCK at ${price:.2f}! Alerting Discord")
+                send_discord(store, name, price, prev_price, link, is_restock=True)
+            
+            elif price < prev_price:
+                # Price dropped!
+                print(f"  📬 Price dropped ${prev_price:.2f} → ${price:.2f}! Alerting Discord")
+                send_discord(store, name, price, prev_price, link, is_restock=False)
+            
+            elif price > prev_price:
+                print(f"  📈 Price went up ${prev_price:.2f} → ${price:.2f} (no alert)")
+            
+            else:
+                print(f"     No change: ${price:.2f} (no alert)")
+        
         print()
 
-        old_prices[key] = price
+        # Save current state (price + stock status)
+        old_prices[key] = {"price": price, "in_stock": in_stock}
 
     save_data(old_prices)
 
@@ -166,7 +207,6 @@ class Browser:
             viewport={"width": 1920, "height": 1080},
             locale="en-US",
         )
-        # Hide automation fingerprints
         self.context.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
             Object.defineProperty(navigator, 'plugins', {get: () => [1,2,3,4,5]});
@@ -185,11 +225,9 @@ class Browser:
         return self.context.new_page()
 
     def fetch(self, url, wait_sel=None, extra_wait=2, timeout=25000):
-        """Load a page, wait for rendering, return HTML."""
         page = self.new_page()
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=timeout)
-            # Dismiss cookie popups that block rendering
             self._dismiss_cookies(page)
             if wait_sel:
                 try:
@@ -205,7 +243,6 @@ class Browser:
             page.close()
 
     def js(self, url, code, wait_sel=None, extra_wait=2, timeout=25000):
-        """Load a page and run JS inside it — returns Python objects."""
         page = self.new_page()
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=timeout)
@@ -225,7 +262,6 @@ class Browser:
 
     @staticmethod
     def _dismiss_cookies(page):
-        """Click common cookie-consent buttons so they don't block content."""
         selectors = [
             "button#onetrust-accept-btn-handler",
             "button[data-testid='cookie-consent-accept']",
@@ -260,83 +296,6 @@ def scrape_newegg(b: Browser):
     print("\n🔍 NEWEGG")
     url = PRODUCTS["Newegg"]
 
-    # --- Method 1: Newegg search API (fast, might work from datacenter) ---
-    print("  Trying API…")
-    try:
-        api_r = req.post(
-            "https://www.newegg.com/api/common/search",
-            json={"Keyword": "RX 6750 XT", "page": 1},
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36"
-                ),
-                "Referer": url,
-                "Accept": "application/json",
-            },
-            timeout=15,
-        )
-        if api_r.status_code == 200:
-            data = api_r.json()
-            products = []
-            results = []
-            # Navigate the API response structure
-            if isinstance(data, dict):
-                results = (
-                    data.get("SearchResults", {})
-                    .get("ProductList", [])
-                    or data.get("ProductList", [])
-                    or data.get("results", [])
-                    or data.get("Items", [])
-                )
-            elif isinstance(data, list):
-                results = data
-
-            for item in results:
-                title = (
-                    item.get("Title", "")
-                    or item.get("title", "")
-                    or item.get("ProductName", "")
-                    or ""
-                )
-                if "6750" not in title.lower():
-                    continue
-
-                link = (
-                    item.get("Link", "")
-                    or item.get("link", "")
-                    or item.get("ProductUrl", "")
-                    or ""
-                )
-                if link and not link.startswith("http"):
-                    link = "https://www.newegg.com" + link
-
-                price = None
-                for key in ["Price", "price", "SalePrice",
-                             "FinalPrice", "CurrentPrice", "finalPrice"]:
-                    val = item.get(key)
-                    if val:
-                        try:
-                            price = float(val)
-                            break
-                        except (ValueError, TypeError):
-                            pass
-
-                if is_gpu_price(price):
-                    products.append({"title": title, "price": price, "link": link})
-
-            if products:
-                print(f"  ✅ API returned {len(products)} product(s)")
-                return products
-            else:
-                print("  API returned no 6750 XT products")
-        else:
-            print(f"  API status: {api_r.status_code}")
-    except Exception as e:
-        print(f"  API error: {e}")
-
-    # --- Method 2: Playwright ---
-    print("  Trying Playwright…")
     products = b.js(url, """
         (() => {
             const out = [];
@@ -346,6 +305,7 @@ def scrape_newegg(b: Browser):
                 const title = a.textContent.trim();
                 if (!title.toLowerCase().includes('6750')) return;
                 const link = a.href;
+                
                 let price = null;
                 const pc = cell.querySelector('li.price-current');
                 if (pc) {
@@ -361,7 +321,12 @@ def scrape_newegg(b: Browser):
                     const m = cell.textContent.match(/[$]?([\\d,]+\\.\\d{2})/);
                     if (m) price = parseFloat(m[1].replace(/,/g, ''));
                 }
-                out.push({title, price, link});
+                
+                const btnBox = cell.querySelector('.item-button-box');
+                const txt = btnBox ? btnBox.textContent.toLowerCase() : '';
+                const isOOS = txt.includes('out of stock') || txt.includes('auto notify');
+                
+                out.push({title, price, link, in_stock: !isOOS});
             });
             return out;
         })()
@@ -378,8 +343,6 @@ def scrape_newegg(b: Browser):
 def _parse_newegg_html(html):
     products = []
     soup = BeautifulSoup(html, "html.parser")
-
-    # DOM parse
     for cell in soup.select("div.item-cell"):
         a = cell.select_one("a.item-title")
         if not a:
@@ -390,6 +353,7 @@ def _parse_newegg_html(html):
         link = a.get("href", "")
         if link.startswith("/"):
             link = "https://www.newegg.com" + link
+        
         price = None
         pc = cell.select_one("li.price-current")
         if pc:
@@ -397,31 +361,31 @@ def _parse_newegg_html(html):
             sup = pc.find("sup")
             if strong and sup:
                 try:
-                    price = float(
-                        (strong.get_text(strip=True) + sup.get_text(strip=True)).replace(",", "")
-                    )
+                    price = float((strong.get_text(strip=True) + sup.get_text(strip=True)).replace(",", ""))
                 except ValueError:
                     pass
             if price is None:
                 price = extract_price(pc.get_text())
         if price is None:
             price = extract_price(cell.get_text())
-        products.append({"title": title, "price": price, "link": link})
 
-    # Regex fallback on __INITIAL_STATE__
+        btn_box = cell.select_one(".item-button-box")
+        btn_text = btn_box.get_text().lower() if btn_box else ""
+        is_oos = "out of stock" in btn_text or "auto notify" in btn_text
+
+        products.append({"title": title, "price": price, "link": link, "in_stock": not is_oos})
+    
     if not products:
         m = re.search(r"window\.__INITIAL_STATE__\s*=\s*({.*?});", html, re.DOTALL)
         if m:
             try:
                 data = json.loads(m.group(1))
                 items = []
-                # Navigate possible structures
                 sr = data.get("SearchResults", data.get("searchResults", {}))
                 if isinstance(sr, dict):
                     items = sr.get("ProductList", sr.get("productList", []))
                 elif isinstance(sr, list):
                     items = sr
-
                 for item in items:
                     title = item.get("Title", item.get("title", ""))
                     if "6750" not in title.lower():
@@ -433,15 +397,11 @@ def _parse_newegg_html(html):
                     for k in ["Price", "SalePrice", "FinalPrice", "price"]:
                         v = item.get(k)
                         if v:
-                            try:
-                                price = float(v)
-                                break
-                            except (ValueError, TypeError):
-                                pass
-                    products.append({"title": title, "price": price, "link": link})
-            except (json.JSONDecodeError, KeyError, TypeError) as e:
-                print(f"  __INITIAL_STATE__ parse error: {e}")
-
+                            try: price = float(v); break
+                            except: pass
+                    is_oos = item.get("IsOutlet", False) or item.get("stock", 0) == 0
+                    products.append({"title": title, "price": price, "link": link, "in_stock": not is_oos})
+            except: pass
     return products
 
 
@@ -459,19 +419,17 @@ def scrape_bestbuy(b: Browser):
                 'li.sku-item, [data-sku-id], div.shop-sku-list-item'
             ).forEach(item => {
                 const a = item.querySelector(
-                    'h4.sku-title a, a[data-testid="product-title"], ' +
-                    'a.v-line-clamp-2'
+                    'h4.sku-title a, a[data-testid="product-title"], a.v-line-clamp-2'
                 );
                 if (!a) return;
                 const title = a.textContent.trim();
                 if (!title.toLowerCase().includes('6750')) return;
                 const link = a.href;
+                
                 let price = null;
                 const pe = item.querySelector(
-                    'div.priceView-customer-price span, ' +
-                    '[data-testid="customer-price"] span, ' +
-                    '.pricing-price .sr-only, ' +
-                    'div.priceView-hero-price span'
+                    'div.priceView-customer-price span, [data-testid="customer-price"] span, ' +
+                    '.pricing-price .sr-only, div.priceView-hero-price span'
                 );
                 if (pe) {
                     const m = pe.textContent.match(/([\\d,]+\\.\\d{2})/);
@@ -481,7 +439,15 @@ def scrape_bestbuy(b: Browser):
                     const m2 = item.textContent.match(/[$]([\\d,]+\\.\\d{2})/);
                     if (m2) price = parseFloat(m2[1].replace(/,/g, ''));
                 }
-                out.push({title, price, link});
+                
+                const hasAddToCart = !!item.querySelector(
+                    'button.add-to-cart-button, button[data-testid="add-to-cart-button"]'
+                );
+                const isSoldOut = !!item.querySelector(
+                    'button.sold-out-button, div.fulfillment-sold-out'
+                );
+                
+                out.push({title, price, link, in_stock: hasAddToCart && !isSoldOut});
             });
             return out;
         })()
@@ -514,7 +480,11 @@ def _parse_bestbuy_html(html):
             price = extract_price(pe.get_text())
         if price is None:
             price = extract_price(item.get_text())
-        products.append({"title": title, "price": price, "link": link})
+            
+        has_atc = bool(item.select_one("button.add-to-cart-button"))
+        is_oos = bool(item.select_one("button.sold-out-button, div.fulfillment-sold-out"))
+        
+        products.append({"title": title, "price": price, "link": link, "in_stock": has_atc and not is_oos})
     return products
 
 
@@ -529,22 +499,20 @@ def scrape_bhphoto(b: Browser):
         (() => {
             const out = [];
             const cards = document.querySelectorAll(
-                '[data-selenium="productCard"], .product-card, ' +
-                '.cx-item, .item[data-selenium]'
+                '[data-selenium="productCard"], .product-card, .cx-item, .item[data-selenium]'
             );
             cards.forEach(card => {
                 const titleEl = card.querySelector(
-                    'a[data-selenium="itemHeadingLink"], ' +
-                    'a[href*="/sp/"], .item-heading a, a[itemprop="url"]'
+                    'a[data-selenium="itemHeadingLink"], a[href*="/sp/"], .item-heading a, a[itemprop="url"]'
                 );
                 if (!titleEl) return;
                 const title = titleEl.textContent.trim();
                 if (!title.toLowerCase().includes('6750')) return;
                 const link = titleEl.href;
+                
                 let price = null;
                 const priceEl = card.querySelector(
-                    '[data-selenium="uppedDecimalPrice"], ' +
-                    '[data-selenium="pricingPrice"], ' +
+                    '[data-selenium="uppedDecimalPrice"], [data-selenium="pricingPrice"], ' +
                     '[itemprop="price"], .price, .cx-item-price'
                 );
                 if (priceEl) {
@@ -555,7 +523,11 @@ def scrape_bhphoto(b: Browser):
                     const m2 = card.textContent.match(/[$]([\\d,]+\\.\\d{2})/);
                     if (m2) price = parseFloat(m2[1].replace(/,/g, ''));
                 }
-                out.push({title, price, link});
+                
+                const txt = card.textContent.toLowerCase();
+                const isOOS = txt.includes('out of stock') || txt.includes('notify me when available') || txt.includes('backorder');
+                
+                out.push({title, price, link, in_stock: !isOOS});
             });
             return out;
         })()
@@ -588,7 +560,11 @@ def _parse_bhphoto_html(html):
             price = extract_price(pe.get_text())
         if price is None:
             price = extract_price(card.get_text())
-        products.append({"title": title, "price": price, "link": link})
+            
+        txt = card.get_text().lower()
+        is_oos = "out of stock" in txt or "notify me" in txt or "backorder" in txt
+        
+        products.append({"title": title, "price": price, "link": link, "in_stock": not is_oos})
     return products
 
 
@@ -602,15 +578,13 @@ def scrape_walmart(b: Browser):
     products = b.js(url, """
         (() => {
             const out = [];
-            // Method 1: __NEXT_DATA__ JSON
             const nd = document.getElementById('__NEXT_DATA__');
             if (nd) {
                 try {
                     const data = JSON.parse(nd.textContent);
                     const props = (data.props || {}).pageProps || {};
                     const sc = props.searchContent || {};
-                    const items = (sc.itemStacks || [{}])[0].items
-                                || props.products || [];
+                    const items = (sc.itemStacks || [{}])[0].items || props.products || [];
                     items.forEach(item => {
                         const name = item.name || item.title || '';
                         if (!name.toLowerCase().includes('6750')) return;
@@ -620,19 +594,20 @@ def scrape_walmart(b: Browser):
                         const pm = item.priceMap || item.price || {};
                         let price = pm.price || pm.currentPrice || pm.salePrice || null;
                         if (price !== null) price = parseFloat(price);
-                        out.push({title: name, price, link});
+                        
+                        const status = (item.availabilityStatus || '').toUpperCase();
+                        const isOOS = status === 'OUT_OF_STOCK' || status === 'PREORDER' || item.oos === true;
+                        
+                        out.push({title: name, price, link, in_stock: !isOOS});
                     });
                 } catch(e) {}
             }
-            // Method 2: DOM scraping
             if (out.length === 0) {
                 document.querySelectorAll(
-                    '[data-item-id], [data-testid="item-card"], ' +
-                    'div.mb0.ph0.pt0.pb0'
+                    '[data-item-id], [data-testid="item-card"], div.mb0.ph0.pt0.pb0'
                 ).forEach(el => {
                     const te = el.querySelector(
-                        'span[data-automation-id="product-title"], ' +
-                        '[data-testid="product-title"]'
+                        'span[data-automation-id="product-title"], [data-testid="product-title"]'
                     );
                     if (!te) return;
                     const title = te.textContent.trim();
@@ -641,14 +616,15 @@ def scrape_walmart(b: Browser):
                     const link = le ? le.href : '';
                     let price = null;
                     const pe = el.querySelector(
-                        '[data-automation-id="product-price"], ' +
-                        '[data-testid="price"], .lh-copy'
+                        '[data-automation-id="product-price"], [data-testid="price"], .lh-copy'
                     );
                     if (pe) {
                         const m = pe.textContent.match(/([\\d,]+\\.\\d{2})/);
                         if (m) price = parseFloat(m[1].replace(/,/g, ''));
                     }
-                    out.push({title, price, link});
+                    const txt = el.textContent.toLowerCase();
+                    const isOOS = txt.includes('out of stock');
+                    out.push({title, price, link, in_stock: !isOOS});
                 });
             }
             return out;
@@ -665,17 +641,13 @@ def scrape_walmart(b: Browser):
 
 def _parse_walmart_html(html):
     products = []
-    m = re.search(
-        r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>',
-        html, re.DOTALL,
-    )
+    m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
     if m:
         try:
             data = json.loads(m.group(1))
             props = data.get("props", {}).get("pageProps", {})
             sc = props.get("searchContent", {})
-            items = (sc.get("itemStacks", [{}])[0].get("items", [])
-                     or props.get("products", []))
+            items = (sc.get("itemStacks", [{}])[0].get("items", []) or props.get("products", []))
             for item in items:
                 name = item.get("name", "") or item.get("title", "")
                 if "6750" not in name.lower():
@@ -689,9 +661,10 @@ def _parse_walmart_html(html):
                     price = float(price_val)
                 except (ValueError, TypeError):
                     price = None
-                products.append({"title": name, "price": price, "link": link})
-        except (json.JSONDecodeError, KeyError, TypeError):
-            pass
+                status = (item.get("availabilityStatus", "")).upper()
+                is_oos = status == "OUT_OF_STOCK" or item.get("oos") == True
+                products.append({"title": name, "price": price, "link": link, "in_stock": not is_oos})
+        except: pass
 
     if not products:
         price_hits = set()
@@ -700,15 +673,14 @@ def _parse_walmart_html(html):
                 val = float(p_str.replace(",", ""))
                 if GPU_FLOOR <= val <= MAX_PRICE:
                     price_hits.add(val)
-            except ValueError:
-                pass
+            except ValueError: pass
         for slug in re.findall(r'href="/ip/([^"]*6750[^"]*)"', html, re.I):
             products.append({
                 "title": "RX 6750 XT",
                 "price": min(price_hits) if price_hits else None,
                 "link":  f"https://www.walmart.com/ip/{slug}",
+                "in_stock": True
             })
-
     return products
 
 
@@ -718,7 +690,6 @@ def _parse_walmart_html(html):
 def scrape_ebay(b: Browser):
     print("\n🔍 EBAY")
     url = PRODUCTS["eBay"]
-
     SKIP = ['cable','adapter','bracket','riser','power','cooler',
             'thermal','case','fan','holder','support','hdmi',
             'displayport','pcie','backplate','screw','nut']
@@ -742,7 +713,7 @@ def scrape_ebay(b: Browser):
                     const m = pe.textContent.match(/([\\d,]+\\.\\d{{2}})/);
                     if (m) price = parseFloat(m[1].replace(/,/g, ''));
                 }}
-                out.push({{title, price, link}});
+                out.push({{title, price, link, in_stock: true}});
             }});
             return out;
         }})()
@@ -780,7 +751,7 @@ def _parse_ebay_html(html):
             price = extract_price(pe.get_text())
         if price is None:
             price = extract_price(item.get_text())
-        products.append({"title": title, "price": price, "link": link})
+        products.append({"title": title, "price": price, "link": link, "in_stock": True})
     return products
 
 
