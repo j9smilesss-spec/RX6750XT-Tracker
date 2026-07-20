@@ -25,7 +25,7 @@ DATA_FILE = "prices.json"
 PRODUCTS = {
     "Best Buy": "https://www.bestbuy.com/site/searchpage.jsp?st=rx+6750+xt",
     "B&H": "https://www.bhphotovideo.com/c/search?q=RX%206750%20XT",
-"Newegg": "https://www.newegg.com/asrock-challenger-pro-rx6750xt-clp-12go-radeon-rx-6750-xt-12gb-graphics-card-triple-fans/p/N82E16814930071",
+    "Newegg": "https://www.newegg.com/p/pl?d=RX+6750+XT",
     "Walmart": "https://www.walmart.com/search?q=RX+6750+XT",
     "eBay": "https://www.ebay.com/sch/i.html?_nkw=RX+6750+XT"
 }
