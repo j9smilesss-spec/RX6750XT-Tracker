@@ -164,130 +164,103 @@ def check_product(name, url):
         print(f"{name} failed: {e}")
         return
 
+    soup = BeautifulSoup(response.text, "html.parser")
 
-    soup = BeautifulSoup(
-        response.text,
-        "html.parser"
-    )
-
-
-    # Find product links
-    links = soup.find_all("a", href=True)
-
-
+    # Find the first RX 6750 XT product
     found_product = None
 
-    for link in links:
+    for link in soup.find_all("a", href=True):
 
         href = link["href"]
         title = link.get_text(" ", strip=True)
 
-
         if "/p/" in href and "6750" in title.lower():
+
+            if href.startswith("/"):
+                href = "https://www.newegg.com" + href
 
             found_product = {
                 "title": title,
                 "link": href
             }
-
             break
 
-
     if not found_product:
-
         print("No RX 6750 XT product found")
         return
 
-
     title = found_product["title"]
     product_link = found_product["link"]
-
-
-    # Fix relative URLs
-    if product_link.startswith("/"):
-
-        product_link = "https://www.newegg.com" + product_link
-
 
     print("Found:")
     print(title)
     print(product_link)
 
-
-    # Load the actual product page for price
+    # Load the product page
     try:
         product_response = requests.get(
             product_link,
             headers=HEADERS,
             timeout=60
         )
-
-        product_soup = BeautifulSoup(
-            product_response.text,
-            "html.parser"
-        )
-
     except requests.exceptions.RequestException as e:
         print("Product page failed:", e)
         return
 
+    html = product_response.text
 
-html = product_response.text
+    prices = []
 
-prices = []
+    patterns = [
+        r'"currentPrice":"(\d+\.\d{2})"',
+        r'"finalPrice":"(\d+\.\d{2})"',
+        r'"price":"(\d+\.\d{2})"',
+        r'\$(\d+\.\d{2})'
+    ]
 
-patterns = [
-    r'"price":"(\d+\.\d{2})"',
-    r'"currentPrice":"(\d+\.\d{2})"',
-    r'"finalPrice":"(\d+\.\d{2})"',
-    r'\$(\d+\.\d{2})'
-]
+    for pattern in patterns:
+        matches = re.findall(pattern, html)
 
-for pattern in patterns:
-    matches = re.findall(pattern, html)
+        for match in matches:
+            try:
+                value = float(match)
 
-    for match in matches:
-        value = float(match)
+                if MIN_PRICE <= value <= MAX_PRICE:
+                    prices.append(value)
 
-        if MIN_PRICE <= value <= MAX_PRICE:
-            prices.append(value)
+            except ValueError:
+                pass
 
-
-    print("Prices found:", prices[:20])
+    print("Prices found:", prices)
 
     if not prices:
         print("No valid price")
         return
 
-
+    # Remove duplicates
     unique_prices = sorted(set(prices))
 
     print("Unique prices:", unique_prices)
 
-
+    # Ignore suspiciously low accessory prices
     possible_prices = [
         p for p in unique_prices
-        if 240 <= p <= 315
+        if p >= 240
     ]
 
-    print("Possible prices:", possible_prices)
-
-
     if not possible_prices:
-        print("No realistic price found")
+        print("No realistic GPU price found")
         return
 
-
+    # Use the lowest realistic price
     price = min(possible_prices)
 
     print("Using price:", price)
-
 
     previous = old_prices.get(name)
 
     print("Previous:", previous)
     print("Current:", price)
-
 
     if previous != price:
 
@@ -299,7 +272,6 @@ for pattern in patterns:
             previous,
             product_link
         )
-
 
     old_prices[name] = price
     save_data(old_prices)
