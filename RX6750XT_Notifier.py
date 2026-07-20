@@ -1,8 +1,8 @@
 """
 RX 6750 XT Price Tracker — Playwright Edition
 ================================================================
-- Filters out Refurbished, Open Box, and Scalper listings.
-- Fixes Best Buy crash by allowing redirects to settle.
+- Filters out Refurbished, Open Box, and Scalper listings silently.
+- Fixes Best Buy crash by waiting for redirects to settle.
 - Only alerts for NEW, IN STOCK items UNDER the max price threshold.
 """
 
@@ -126,30 +126,40 @@ def report_products(store, products):
 
     best = {}
     skipped_oos = 0
+    skipped_scalper = 0
+
     for p in products:
-        # Silently skip out of stock items, but count them
+        key = f"{store}|{p['title']}"
+
+        # Silently skip out-of-stock items, but track them for restock alerts
         if not p.get("in_stock", True):
             skipped_oos += 1
+            old_prices[key] = {"price": p.get("price"), "in_stock": False}
+            continue
+
+        # Silently skip overpriced scalper items
+        if p.get("price") is None or p["price"] > MAX_PRICE:
+            skipped_scalper += 1
+            old_prices[key] = {"price": p.get("price"), "in_stock": True}
             continue
 
         k = p["link"]
         if k not in best:
             best[k] = p
-        elif p.get("price") is not None and (best[k].get("price") is None or p["price"] < best[k]["price"]):
+        elif p["price"] < best[k]["price"]:
             best[k] = p
 
     if skipped_oos > 0:
         print(f"  📦 Skipped {skipped_oos} out-of-stock items (tracking for restock).")
+    if skipped_scalper > 0:
+        print(f"  💸 Skipped {skipped_scalper} overpriced/scalper items.")
 
     alerts_sent = 0
     for prod in best.values():
-        name     = prod["title"]
-        price    = prod["price"]
-        link     = prod["link"]
-        key      = f"{store}|{name}"
-
-        if price is None:
-            continue
+        name  = prod["title"]
+        price = prod["price"]
+        link  = prod["link"]
+        key   = f"{store}|{name}"
 
         print(f"  🎮  {name}")
         print(f"  💰  ${price:.2f}")
@@ -163,34 +173,25 @@ def report_products(store, products):
         prev_price = prev_data.get("price") if prev_data else None
         prev_stock = prev_data.get("in_stock") if prev_data else None
 
-        if price > MAX_PRICE:
-            print(f"  💸 Price ${price:.2f} is above ${MAX_PRICE} threshold (no alert)")
+        if prev_price is None:
+            print(f"  🆕 First time seen and in stock under ${MAX_PRICE}! Alerting Discord")
+            send_discord(store, name, price, None, link, is_restock=False)
+            alerts_sent += 1
+        elif prev_stock == False:
+            print(f"  🎉 BACK IN STOCK at ${price:.2f}! Alerting Discord")
+            send_discord(store, name, price, prev_price, link, is_restock=True)
+            alerts_sent += 1
+        elif price < prev_price:
+            print(f"  📬 Price dropped ${prev_price:.2f} → ${price:.2f}! Alerting Discord")
+            send_discord(store, name, price, prev_price, link, is_restock=False)
+            alerts_sent += 1
+        elif price > prev_price:
+            print(f"  📈 Price went up ${prev_price:.2f} → ${price:.2f} (no alert)")
         else:
-            if prev_price is None:
-                print(f"  🆕 First time seen and in stock under ${MAX_PRICE}! Alerting Discord")
-                send_discord(store, name, price, None, link, is_restock=False)
-                alerts_sent += 1
-            elif prev_stock == False:
-                print(f"  🎉 BACK IN STOCK at ${price:.2f}! Alerting Discord")
-                send_discord(store, name, price, prev_price, link, is_restock=True)
-                alerts_sent += 1
-            elif price < prev_price:
-                print(f"  📬 Price dropped ${prev_price:.2f} → ${price:.2f}! Alerting Discord")
-                send_discord(store, name, price, prev_price, link, is_restock=False)
-                alerts_sent += 1
-            elif price > prev_price:
-                print(f"  📈 Price went up ${prev_price:.2f} → ${price:.2f} (no alert)")
-            else:
-                print(f"     No change: ${price:.2f} (no alert)")
+            print(f"     No change: ${price:.2f} (no alert)")
         
         print()
         old_prices[key] = {"price": price, "in_stock": True}
-
-    # Silently save out of stock items to memory so we know if they restock
-    for p in products:
-        if not p.get("in_stock", True):
-            key = f"{store}|{p['title']}"
-            old_prices[key] = {"price": p["price"], "in_stock": False}
 
     save_data(old_prices)
     return alerts_sent
@@ -238,10 +239,10 @@ class Browser:
     def new_page(self):
         return self.context.new_page()
 
-    def fetch(self, url, wait_sel=None, extra_wait=2, timeout=25000):
+    def fetch(self, url, wait_sel=None, extra_wait=2, timeout=25000, wait_until="domcontentloaded"):
         page = self.new_page()
         try:
-            page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+            page.goto(url, wait_until=wait_until, timeout=timeout)
             self._dismiss_cookies(page)
             if wait_sel:
                 try:
@@ -256,10 +257,10 @@ class Browser:
         finally:
             page.close()
 
-    def js(self, url, code, wait_sel=None, extra_wait=2, timeout=25000):
+    def js(self, url, code, wait_sel=None, extra_wait=2, timeout=25000, wait_until="domcontentloaded"):
         page = self.new_page()
         try:
-            page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+            page.goto(url, wait_until=wait_until, timeout=timeout)
             self._dismiss_cookies(page)
             if wait_sel:
                 try:
@@ -310,7 +311,6 @@ def scrape_newegg(b: Browser):
     print("\n🔍 NEWEGG")
     url = PRODUCTS["Newegg"]
 
-    # Added "Refurbished" and "Open Box" to skip list
     products = b.js(url, """
         (() => {
             const skip = ['refurbished', 'open box', 'cable', 'adapter', 'bracket', 'riser', 'cooler'];
@@ -318,7 +318,7 @@ def scrape_newegg(b: Browser):
             document.querySelectorAll('div.item-cell').forEach(cell => {
                 const a = cell.querySelector('a.item-title');
                 if (!a) return;
-                const title = a.textContent.trim();
+                const title = a.innerText.trim();
                 const tl = title.toLowerCase();
                 if (!tl.match(/6750\\s*xt/)) return;
                 if (skip.some(w => tl.includes(w))) return;
@@ -331,17 +331,17 @@ def scrape_newegg(b: Browser):
                     const sup = pc.querySelector('sup');
                     if (s && sup) {
                         price = parseFloat(
-                            (s.textContent + sup.textContent).replace(/,/g, '')
+                            (s.innerText + sup.innerText).replace(/,/g, '')
                         );
                     }
                 }
                 if (price === null || isNaN(price)) {
-                    const m = cell.textContent.match(/[$]?([\\d,]+\\.\\d{2})/);
+                    const m = cell.innerText.match(/[$]?([\\d,]+\\.\\d{2})/);
                     if (m) price = parseFloat(m[1].replace(/,/g, ''));
                 }
                 
                 const hasATC = !!cell.querySelector('a.btn-primary, button.btn-primary');
-                const cellText = cell.textContent.toLowerCase();
+                const cellText = cell.innerText.toLowerCase();
                 const isOOS = cellText.includes('out of stock') || cellText.includes('auto notify') || cellText.includes('sold out');
                 
                 out.push({title, price, link, in_stock: hasATC || !isOOS});
@@ -406,7 +406,7 @@ def scrape_bestbuy(b: Browser):
     print("\n🔍 BEST BUY")
     url = PRODUCTS["Best Buy"]
 
-    # Use extra_wait=5 to let Best Buy's aggressive redirects settle
+    # Use networkidle to let Best Buy's aggressive redirects settle
     products = b.js(url, """
         (() => {
             const out = [];
@@ -417,7 +417,7 @@ def scrape_bestbuy(b: Browser):
                     'h4.sku-title a, a[data-testid="product-title"], a.v-line-clamp-2'
                 );
                 if (!a) return;
-                const title = a.textContent.trim();
+                const title = a.innerText.trim();
                 if (!title.toLowerCase().match(/6750\\s*xt/)) return;
                 const link = a.href;
                 
@@ -427,11 +427,11 @@ def scrape_bestbuy(b: Browser):
                     '.pricing-price .sr-only, div.priceView-hero-price span'
                 );
                 if (pe) {
-                    const m = pe.textContent.match(/([\\d,]+\\.\\d{2})/);
+                    const m = pe.innerText.match(/([\\d,]+\\.\\d{2})/);
                     if (m) price = parseFloat(m[1].replace(/,/g, ''));
                 }
                 if (price === null || isNaN(price)) {
-                    const m2 = item.textContent.match(/[$]([\\d,]+\\.\\d{2})/);
+                    const m2 = item.innerText.match(/[$]([\\d,]+\\.\\d{2})/);
                     if (m2) price = parseFloat(m2[1].replace(/,/g, ''));
                 }
                 
@@ -450,10 +450,10 @@ def scrape_bestbuy(b: Browser):
             });
             return out;
         })()
-    """, wait_sel="li.sku-item, [data-sku-id]", extra_wait=5)
+    """, wait_sel="li.sku-item, [data-sku-id]", extra_wait=5, wait_until="networkidle")
 
     if not products:
-        html = b.fetch(url, wait_sel="li.sku-item", extra_wait=5)
+        html = b.fetch(url, wait_sel="li.sku-item", extra_wait=5, wait_until="networkidle")
         b.debug_save("bestbuy", html)
         products = _parse_bestbuy_html(html)
 
@@ -506,7 +506,7 @@ def scrape_bhphoto(b: Browser):
                     'a[data-selenium="itemHeadingLink"], a[href*="/sp/"], .item-heading a, a[itemprop="url"]'
                 );
                 if (!titleEl) return;
-                const title = titleEl.textContent.trim();
+                const title = titleEl.innerText.trim();
                 if (!title.toLowerCase().match(/6750\\s*xt/)) return;
                 const link = titleEl.href;
                 
@@ -516,15 +516,15 @@ def scrape_bhphoto(b: Browser):
                     '[itemprop="price"], .price, .cx-item-price'
                 );
                 if (priceEl) {
-                    const m = priceEl.textContent.match(/([\\d,]+\\.\\d{2})/);
+                    const m = priceEl.innerText.match(/([\\d,]+\\.\\d{2})/);
                     if (m) price = parseFloat(m[1].replace(/,/g, ''));
                 }
                 if (price === null || isNaN(price)) {
-                    const m2 = card.textContent.match(/[$]([\\d,]+\\.\\d{2})/);
+                    const m2 = card.innerText.match(/[$]([\\d,]+\\.\\d{2})/);
                     if (m2) price = parseFloat(m2[1].replace(/,/g, ''));
                 }
                 
-                const txt = card.textContent.toLowerCase();
+                const txt = card.innerText.toLowerCase();
                 const isOOS = txt.includes('out of stock') || txt.includes('notify me when available') || txt.includes('backorder');
                 
                 out.push({title, price, link, in_stock: !isOOS});
@@ -566,7 +566,7 @@ def _parse_bhphoto_html(html):
         
         products.append({"title": title, "price": price, "link": link, "in_stock": not is_oos})
     
-    # Fallback Regex for B&H if DOM fails
+    # Fallback Regex for B&H
     if not products:
         link_hits = re.findall(r'href="(/sp/[^"]+)"[^>]*>([^<]*6750[^<]*xt[^<]*)</a>', html, re.I)
         price_hits = set()
@@ -629,7 +629,7 @@ def scrape_walmart(b: Browser):
                         'span[data-automation-id="product-title"], [data-testid="product-title"]'
                     );
                     if (!te) return;
-                    const title = te.textContent.trim();
+                    const title = te.innerText.trim();
                     if (!title.toLowerCase().match(/6750\\s*xt/)) return;
                     const le = el.querySelector('a[href*="/ip/"]');
                     const link = le ? le.href : '';
@@ -638,10 +638,10 @@ def scrape_walmart(b: Browser):
                         '[data-automation-id="product-price"], [data-testid="price"], .lh-copy'
                     );
                     if (pe) {
-                        const m = pe.textContent.match(/([\\d,]+\\.\\d{2})/);
+                        const m = pe.innerText.match(/([\\d,]+\\.\\d{2})/);
                         if (m) price = parseFloat(m[1].replace(/,/g, ''));
                     }
-                    const txt = el.textContent.toLowerCase();
+                    const txt = el.innerText.toLowerCase();
                     const isOOS = txt.includes('out of stock');
                     out.push({title, price, link, in_stock: !isOOS});
                 });
@@ -709,7 +709,6 @@ def _parse_walmart_html(html):
 def scrape_ebay(b: Browser):
     print("\n🔍 EBAY")
     url = PRODUCTS["eBay"]
-    # Added Refurbished and Open Box to skip list
     SKIP = ['refurbished', 'open box', 'cable','adapter','bracket','riser','power','cooler',
             'thermal','case','fan','holder','support','hdmi',
             'displayport','pcie','backplate','screw','nut']
@@ -721,7 +720,7 @@ def scrape_ebay(b: Browser):
             document.querySelectorAll('li.s-item').forEach(item => {{
                 const te = item.querySelector('.s-item__title');
                 if (!te) return;
-                const title = te.textContent.trim();
+                const title = te.innerText.trim();
                 const tl = title.toLowerCase();
                 if (!tl.match(/6750\\s*xt/)) return;
                 if (skip.some(w => tl.includes(w))) return;
@@ -730,7 +729,7 @@ def scrape_ebay(b: Browser):
                 let price = null;
                 const pe = item.querySelector('.s-item__price');
                 if (pe) {{
-                    const m = pe.textContent.match(/([\\d,]+\\.\\d{{2}})/);
+                    const m = pe.innerText.match(/([\\d,]+\\.\\d{{2}})/);
                     if (m) price = parseFloat(m[1].replace(/,/g, ''));
                 }}
                 out.push({{title, price, link, in_stock: true}});
@@ -773,7 +772,7 @@ def _parse_ebay_html(html):
             price = extract_price(item.get_text())
         products.append({"title": title, "price": price, "link": link, "in_stock": True})
     
-    # Fallback Regex for eBay if DOM fails
+    # Fallback Regex for eBay
     if not products:
         link_hits = re.findall(r'href="(https://www\.ebay\.com/itm/[^"]+)"[^>]*>([^<]*6750[^<]*xt[^<]*)</a>', html, re.I)
         price_hits = set()
