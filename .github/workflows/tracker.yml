@@ -5,6 +5,11 @@ on:
     - cron: "0 */2 * * *"
   workflow_dispatch:
 
+# Prevent overlapping runs spamming Discord
+concurrency: 
+  group: price-tracker
+  cancel-in-progress: true
+
 jobs:
   tracker:
     runs-on: ubuntu-latest
@@ -22,13 +27,13 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.cache/ms-playwright
-        key: pw-chromium-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+        key: pw-chromium-${{ runner.os }}
         restore-keys: |
           pw-chromium-${{ runner.os }}-
 
     - name: Install packages
       run: |
-        pip install requests beautifulsoup4 playwright
+        pip install requests beautifulsoup4 playwright playwright-stealth
 
     - name: Install Playwright Chromium + system deps
       run: playwright install --with-deps chromium
@@ -38,3 +43,11 @@ jobs:
         DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         DISCORD_USER_ID: ${{ secrets.DISCORD_USER_ID }}
       run: python RX6750XT_Notifier.py
+
+    - name: Save price data
+      run: |
+        git config user.name "Price Tracker Bot"
+        git config user.email "bot@tracker.local"
+        git add prices.json
+        git diff --cached --quiet || git commit -m "Update prices"
+        git push
