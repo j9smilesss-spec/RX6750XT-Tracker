@@ -257,7 +257,7 @@ for pattern in patterns:
 
     if not prices:
         print("No valid price")
-        return
+    return
 
 
     unique_prices = sorted(set(prices))
