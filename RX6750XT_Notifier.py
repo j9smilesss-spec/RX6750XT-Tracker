@@ -1,7 +1,7 @@
 """
-RX 6750 XT Price Tracker — Playwright Stealth Edition
+RX 6750 XT Price Tracker — Playwright Edition
 ================================================================
-- Uses playwright-stealth to bypass bot protection.
+- Uses manual stealth injection (no external stealth package needed).
 - Runs all 5 stores concurrently (much faster).
 - Only alerts for IN STOCK items UNDER the max price threshold.
 - Better regex catches variants like "RX6750XT" (no spaces).
@@ -34,6 +34,49 @@ PRODUCTS = {
     "Walmart":  "https://www.walmart.com/search?q=RX+6750+XT",
     "eBay":     "https://www.ebay.com/sch/i.html?_nkw=RX+6750+XT",
 }
+
+# =========================
+# STEALTH JS
+# =========================
+STEALTH_JS = """
+    // Overwrite the 'webdriver' property
+    Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+
+    // Fake plugins array
+    Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5]
+    });
+
+    // Fake languages
+    Object.defineProperty(navigator, 'languages', {
+        get: () => ['en-US', 'en']
+    });
+
+    // Fake chrome object
+    window.chrome = { runtime: {} };
+
+    // Override permissions query
+    const originalQuery = window.navigator.permissions.query;
+    window.navigator.permissions.query = (parameters) =>
+        parameters.name === 'notifications'
+            ? Promise.resolve({ state: Notification.permission })
+            : originalQuery(parameters);
+
+    // Fake hardware concurrency
+    Object.defineProperty(navigator, 'hardwareConcurrency', {
+        get: () => 8
+    });
+
+    // Fake platform
+    Object.defineProperty(navigator, 'platform', {
+        get: () => 'Win32'
+    });
+
+    // Remove 'HeadlessChrome' from userAgent
+    Object.defineProperty(navigator, 'userAgent', {
+        get: () => navigator.userAgent.replace('HeadlessChrome/', 'Chrome/')
+    });
+"""
 
 # =========================
 # PRICE MEMORY
@@ -137,7 +180,6 @@ def report_products(store, products):
             print()
             continue
 
-        # Get previous state (backward compatible with old prices.json)
         prev_data = old_prices.get(key)
         if isinstance(prev_data, (int, float)):
             prev_data = {"price": float(prev_data), "in_stock": True}
@@ -145,15 +187,11 @@ def report_products(store, products):
         prev_price = prev_data.get("price") if prev_data else None
         prev_stock = prev_data.get("in_stock") if prev_data else None
 
-        # --- ALERT LOGIC ---
         if not in_stock:
             print(f"  ❌ Out of stock — waiting for restock (no alert)")
-        
         elif price > MAX_PRICE:
-            # Over the $315~ threshold, just track it silently
             print(f"  💸 Price ${price:.2f} is above ${MAX_PRICE} threshold (no alert)")
-        
-        else:  # Item is IN STOCK and UNDER MAX_PRICE
+        else:
             if prev_price is None:
                 print(f"  🆕 First time seen and in stock under ${MAX_PRICE}! Alerting Discord")
                 send_discord(store, name, price, None, link, is_restock=False)
@@ -172,8 +210,6 @@ def report_products(store, products):
                 print(f"     No change: ${price:.2f} (no alert)")
         
         print()
-
-        # Save current state regardless of alerts so we know if it drops later
         old_prices[key] = {"price": price, "in_stock": in_stock}
 
     save_data(old_prices)
@@ -191,7 +227,6 @@ class Browser:
 
     def start(self):
         from playwright.sync_api import sync_playwright
-        from playwright_stealth import stealth_sync
 
         self.pw = sync_playwright().start()
         self.browser = self.pw.chromium.launch(
@@ -211,10 +246,8 @@ class Browser:
             viewport={"width": 1920, "height": 1080},
             locale="en-US",
         )
-        # Apply stealth automatically
-        def on_page_created(page):
-            stealth_sync(page)
-        self.context.on("page", on_page_created)
+        # Inject stealth script before every page loads
+        self.context.add_init_script(STEALTH_JS)
 
     def stop(self):
         try:
@@ -224,10 +257,7 @@ class Browser:
             pass
 
     def new_page(self):
-        from playwright_stealth import stealth_sync
-        page = self.context.new_page()
-        stealth_sync(page)
-        return page
+        return self.context.new_page()
 
     def fetch(self, url, wait_sel=None, extra_wait=2, timeout=25000):
         page = self.new_page()
@@ -771,7 +801,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Failed to start browser: {e}")
         print("Make sure Playwright is installed:")
-        print("  pip install playwright playwright-stealth")
+        print("  pip install playwright")
         print("  playwright install --with-deps chromium")
         raise SystemExit(1)
 
@@ -785,7 +815,6 @@ if __name__ == "__main__":
 
     total_found = 0
 
-    # Run all 5 scrapers concurrently using threads (much faster)
     with ThreadPoolExecutor(max_workers=5) as executor:
         future_to_store = {
             executor.submit(func, browser): store 
@@ -803,7 +832,6 @@ if __name__ == "__main__":
 
     browser.stop()
 
-    # Alert if the script gets completely blocked or breaks
     if total_found == 0:
         print("⚠️ No products found on ANY store. Scrapers might be blocked or broken.")
         try:
