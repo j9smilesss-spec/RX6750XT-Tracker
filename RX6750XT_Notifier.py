@@ -248,58 +248,44 @@ def check_product(name, url):
             prices.append(value)
 
 
-print("Prices found:", prices[:20])
+    print("Prices found:", prices[:20])
 
-if not prices:
-    print("No valid price")
-    return
-
-
-# Remove duplicate prices and sort
-unique_prices = sorted(set(prices))
-
-print("Unique prices:", unique_prices)
+    if not prices:
+        print("No valid price")
+        return
 
 
-# Keep only realistic RX 6750 XT prices
-possible_prices = [
-    p for p in unique_prices
-    if 250 <= p <= 315
-]
+    # Remove duplicates
+    unique_prices = sorted(set(prices))
 
-print("Possible prices:", possible_prices)
-
-if not possible_prices:
-    print("No realistic price found")
-    return
+    print("Unique prices:", unique_prices)
 
 
-price = min(possible_prices)
+    # Ignore fake prices like $808
+    possible_prices = [
+        p for p in unique_prices
+        if 240 <= p <= 315
+    ]
 
-print("Using price:", price)
-
-
-# Prefer realistic GPU prices
-possible_prices = [
-    p for p in unique_prices
-    if 240 <= p <= 315
-]
+    print("Possible prices:", possible_prices)
 
 
-if not possible_prices:
-    print("No realistic GPU price found")
-    return
+    if not possible_prices:
+        print("No realistic GPU price found")
+        return
 
 
-# Pick the lowest realistic price
-price = min(possible_prices)
+    # Pick cheapest real RX 6750 XT price
+    price = min(possible_prices)
 
-print("Using price:", price)
+    print("Using price:", price)
+
 
     previous = old_prices.get(name)
 
     print("Previous:", previous)
     print("Current:", price)
+
 
     if previous != price:
 
@@ -312,10 +298,10 @@ print("Using price:", price)
             product_link
         )
 
+
     old_prices[name] = price
 
     save_data(old_prices)
-
 # =========================
 # RUN
 # =========================
