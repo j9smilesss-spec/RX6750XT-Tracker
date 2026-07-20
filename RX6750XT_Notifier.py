@@ -209,6 +209,10 @@ def check_product(name, url):
 
     html = product_response.text
 
+    # Save the HTML so we can inspect it
+    with open("newegg.html", "w", encoding="utf-8") as f:
+    f.write(html)
+
     prices = []
 
     patterns = [
