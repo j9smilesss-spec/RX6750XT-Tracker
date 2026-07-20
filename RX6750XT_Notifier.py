@@ -232,14 +232,19 @@ def check_product(name, url):
         return
 
 
-    html = product_response.text
+html = product_response.text
 
-    prices = []
+prices = []
 
-    matches = re.findall(
-        r'(\d{2,3}\.\d{2})',
-        html
-    )
+patterns = [
+    r'"price":"(\d+\.\d{2})"',
+    r'"currentPrice":"(\d+\.\d{2})"',
+    r'"finalPrice":"(\d+\.\d{2})"',
+    r'\$(\d+\.\d{2})'
+]
+
+for pattern in patterns:
+    matches = re.findall(pattern, html)
 
     for match in matches:
         value = float(match)
