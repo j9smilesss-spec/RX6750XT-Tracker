@@ -39,40 +39,17 @@ PRODUCTS = {
 # STEALTH JS
 # =========================
 STEALTH_JS = """
-    // Overwrite the 'webdriver' property
     Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-
-    // Fake plugins array
-    Object.defineProperty(navigator, 'plugins', {
-        get: () => [1, 2, 3, 4, 5]
-    });
-
-    // Fake languages
-    Object.defineProperty(navigator, 'languages', {
-        get: () => ['en-US', 'en']
-    });
-
-    // Fake chrome object
+    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
     window.chrome = { runtime: {} };
-
-    // Override permissions query
     const originalQuery = window.navigator.permissions.query;
     window.navigator.permissions.query = (parameters) =>
         parameters.name === 'notifications'
             ? Promise.resolve({ state: Notification.permission })
             : originalQuery(parameters);
-
-    // Fake hardware concurrency
-    Object.defineProperty(navigator, 'hardwareConcurrency', {
-        get: () => 8
-    });
-
-    // Fake platform
-    Object.defineProperty(navigator, 'platform', {
-        get: () => 'Win32'
-    });
-
-    // Remove 'HeadlessChrome' from userAgent
+    Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+    Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
     Object.defineProperty(navigator, 'userAgent', {
         get: () => navigator.userAgent.replace('HeadlessChrome/', 'Chrome/')
     });
@@ -246,7 +223,6 @@ class Browser:
             viewport={"width": 1920, "height": 1080},
             locale="en-US",
         )
-        # Inject stealth script before every page loads
         self.context.add_init_script(STEALTH_JS)
 
     def stop(self):
@@ -839,5 +815,8 @@ if __name__ == "__main__":
                 "content": f"<@{DISCORD_USER_ID}> ⚠️ The RX 6750 XT tracker found 0 results across all stores. It might be blocked or broken! Check the logs.",
             }, timeout=10)
         except: pass
+
+    # ALWAYS save the data file at the end so GitHub Actions can commit it
+    save_data(old_prices)
 
     print("✅ Done.")
