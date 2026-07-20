@@ -2,7 +2,7 @@
 RX 6750 XT Price Tracker — Playwright Edition
 ================================================================
 - Uses manual stealth injection (no external stealth package needed).
-- Runs all 5 stores concurrently (much faster).
+- Runs stores sequentially to prevent thread-crashing.
 - Only alerts for IN STOCK items UNDER the max price threshold.
 - Better regex catches variants like "RX6750XT" (no spaces).
 - Alerts you if the scraper gets completely blocked.
@@ -15,7 +15,6 @@ import time
 import requests as req
 from datetime import datetime
 from bs4 import BeautifulSoup
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # =========================
 # SETTINGS
@@ -791,20 +790,15 @@ if __name__ == "__main__":
 
     total_found = 0
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        future_to_store = {
-            executor.submit(func, browser): store 
-            for store, func in SCRAPERS
-        }
-        
-        for future in as_completed(future_to_store):
-            store = future_to_store[future]
-            try:
-                products = future.result()
-                total_found += len(products)
-                report_products(store, products)
-            except Exception as e:
-                print(f"❌ {store} crashed: {e}\n")
+    # Run sequentially to prevent Playwright thread-crashing
+    for store, func in SCRAPERS:
+        try:
+            products = func(browser)
+            total_found += len(products)
+            report_products(store, products)
+        except Exception as e:
+            print(f"❌ {store} crashed: {e}\n")
+        time.sleep(1)
 
     browser.stop()
 
