@@ -1,0 +1,38 @@
+{
+    "Newegg|ASRock Challenger Pro Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 Graphics Card RX6750XT CLP 12GO": {
+        "price": 808.98,
+        "in_stock": true
+    },
+    "Newegg|GIGABYTE AORUS Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 ATX Graphics Card GV-R675XTAORUS E-12GD": {
+        "price": 869,
+        "in_stock": true
+    },
+    "Newegg|PowerColor RED DEVIL Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 ATX Graphics Card AXRX 6750XT 12GBD6-3DHE/OC": {
+        "price": 869,
+        "in_stock": true
+    },
+    "Newegg|ASRock Phantom Gaming D Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 Graphics Card RX6750XT PGD 12GO": {
+        "price": 800.78,
+        "in_stock": true
+    },
+    "Newegg|MSI Mech Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 ATX Graphics Card RX 6750 XT MECH 2X 12G V1": {
+        "price": 845,
+        "in_stock": true
+    },
+    "Newegg|SAPPHIRE NITRO+ Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 ATX Graphics Card 11318-01-20G": {
+        "price": 869,
+        "in_stock": true
+    },
+    "Newegg|ASUS Dual AMD Radeon RX 6750 XT OC Edition 12GB GDDR6 Gaming Graphics Card (AMD RDNA 2, PCIe 4.0, 12GB GDDR6 Memory, HDMI 2.1, DisplayPort 1.4a, Axial-tech Fan Design, 0dB Technology, Overclocked)": {
+        "price": 869,
+        "in_stock": true
+    },
+    "Newegg|ASRock AMD Radeon RX 6750 XT Challenger Pro 12GB OC GDDR6 192-bit 0dB Silent Cooling Graphics Card 7680 x 4320 DisplayPort HDMI Overclocked 18 Gbps": {
+        "price": 869,
+        "in_stock": true
+    },
+    "Newegg|MSI Gaming Radeon RX 6750 XT 192-bit 12GB GDDR6 DP/HDMI Triple Torx 4.0 Fans FreeSync DirectX 12 VR Ready OC Graphics Card (RX 6750 XT GAMING X TRIO 12G)": {
+        "price": 869,
+        "in_stock": true
+    }
+}
