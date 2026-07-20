@@ -255,7 +255,9 @@ def check_product(name, url):
         return
 
 
-    price = min(prices)
+    from collections import Counter
+
+    price = Counter(prices).most_common(1)[0][0]
 
     print("Using price:", price)
 
