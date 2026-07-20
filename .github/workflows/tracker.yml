@@ -5,7 +5,6 @@ on:
     - cron: "0 */2 * * *"
   workflow_dispatch:
 
-# Prevent overlapping runs spamming Discord
 concurrency: 
   group: price-tracker
   cancel-in-progress: true
@@ -33,7 +32,7 @@ jobs:
 
     - name: Install packages
       run: |
-        pip install requests beautifulsoup4 playwright playwright-stealth
+        pip install requests beautifulsoup4 playwright
 
     - name: Install Playwright Chromium + system deps
       run: playwright install --with-deps chromium
