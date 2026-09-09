@@ -42,5 +42,45 @@
     "Newegg|SAPPHIRE PULSE Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 ATX Graphics Card 11318-03-20G": {
         "price": 869,
         "in_stock": true
+    },
+    "Newegg|PRC X-FORCE Special Edition Custom Gaming PC Intel Core i7-7700 3.6GHz Quad Core 16GB DDR4 1TB SSD AMD Radeon RX 6750 XT 12GB GDDR6 802.11AC Wi-Fi Bluetooth 5.0 W10 Home": {
+        "price": 1149.99,
+        "in_stock": true
+    },
+    "Newegg|Bykski Full Coverage GPU Water Block and Backplate for PowerColor RX 6750 XT Red Devil (A-PC6750XT-X)": {
+        "price": 239.99,
+        "in_stock": true
+    },
+    "Newegg|Graphics Card 95MM FD10015M12D RX6750XT Video Card Fan Compatible with RX 6750 XT Graphics Card Cooling Tow Ball Bearing Fan": {
+        "price": 148.99,
+        "in_stock": true
+    },
+    "Newegg|95MM FD10015M12D RX6750XT Video Card Fan Compatible with RX 6750 XT Graphics Card Cooling Tow Ball Bearing Fan": {
+        "price": 150.99,
+        "in_stock": true
+    },
+    "Newegg|Bykski Full Coverage GPU Water Block and Backplate for ASUS ROG Strix RX 6750 XT O12G (A-AS6700TUF-X-V2)": {
+        "price": 239.99,
+        "in_stock": true
+    },
+    "Newegg|Cooling Fan 95MM FD10015M12D RX6750XT Video Card for Sapphire Pulse for AMD for Radeon RX 6750 XT Graphics GPU Easy to Replace(Green)": {
+        "price": 202.99,
+        "in_stock": true
+    },
+    "Newegg|RX6750 GPU Heat Sink for POWERCOLOR for AMD Radeon RX 6750 XT Fighter OC Video Card Heatsink Laptop Parts": {
+        "price": 147.99,
+        "in_stock": true
+    },
+    "Newegg|Graphics Card for RX 6750 XT GDDR6 Video Card Fan 87MM T129215BU RX6750XT Graphics Card Replacement Fan(Fan - B)": {
+        "price": 80.99,
+        "in_stock": true
+    },
+    "Newegg|3Pcs Set PD10015H12D FD9015U12D DC12V 0.55AMP 4-Pin Graphics Card Fan Compatible with RX 6950 XT RX 6750 XT Fan": {
+        "price": 102.99,
+        "in_stock": true
+    },
+    "Newegg|units/set, PLD08010S12HH, GPU graphics card fan, suitable for RX 5600/5700 XT Gaming graphics cards, also suitable for RX 6750XT/6700XT OC graphics cards, 12G": {
+        "price": 35.98,
+        "in_stock": true
     }
 }
