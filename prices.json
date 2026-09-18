@@ -82,5 +82,9 @@
     "Newegg|units/set, PLD08010S12HH, GPU graphics card fan, suitable for RX 5600/5700 XT Gaming graphics cards, also suitable for RX 6750XT/6700XT OC graphics cards, 12G": {
         "price": 35.98,
         "in_stock": true
+    },
+    "Newegg|PowerColor Fighter Radeon RX 6750 XT 12GB GDDR6 PCI Express 4.0 ATX Graphics Card AXRX 6750XT 12GBD6-3DH": {
+        "price": 869,
+        "in_stock": true
     }
 }
